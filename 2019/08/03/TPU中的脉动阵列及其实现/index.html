@@ -60,19 +60,19 @@
   <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
 <meta property="og:type" content="article">
 <meta property="og:title" content="TPU中的脉动阵列及其实现">
-<meta property="og:url" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/index.html">
+<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/TPU中的脉动阵列及其实现/index.html">
 <meta property="og:site_name" content="SEAWIND">
 <meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-3.png">
-<meta property="og:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-4.png%5C">
-<meta property="og:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-5.png%5C">
+<meta property="og:image" content="http://cea-wind.github.io/.com//%5Cimages%5Cpasted-3.png">
+<meta property="og:image" content="http://cea-wind.github.io/.com//%5Cimages%5Cpasted-4.png%5C">
+<meta property="og:image" content="http://cea-wind.github.io/.com//%5Cimages%5Cpasted-5.png%5C">
 <meta property="og:updated_time" content="2019-08-02T16:51:42.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="TPU中的脉动阵列及其实现">
 <meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
-<meta name="twitter:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-3.png">
-  <link rel="canonical" href="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/">
+<meta name="twitter:image" content="http://cea-wind.github.io/.com//%5Cimages%5Cpasted-3.png">
+  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/TPU中的脉动阵列及其实现/">
 
 
 <script id="page.configurations">
@@ -218,7 +218,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/TPU中的脉动阵列及其实现/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="">
@@ -294,9 +294,9 @@ TPU的边界（规划中）
 本文将对TPU中的矩阵计算单元进行分析，并给出了SimpleTPU中32×32的脉动阵列的实现方式和采用该阵列进行卷积计算的方法，以及一个卷积的设计实例，验证了其正确性。代码地址https://github.com/cea-wind/SimpleTPU/tree/master/lab1</code></pre><ol>
 <li>脉动阵列和矩阵计算<br> 脉动阵列是一种复用输入数据的设计，对于TPU中的二维脉动阵列，很多文章中构造了脉动阵列的寄存器模型，导致阅读较为困难，而实际上TPU中的二维脉动阵列设计思路十分直接。譬如当使用4×4的脉动阵列计算4×4的矩阵乘法时，有</li>
 </ol>
-<p><img src="%5Cimages%5Cpasted-3.png" alt="upload successful"></p>
-<p><img src="%5Cimages%5Cpasted-4.png%5C" alt="upload successful"></p>
-<p><img src="%5Cimages%5Cpasted-5.png%5C" alt="upload successful"></p>
+<p><img src="/.com//%5Cimages%5Cpasted-3.png" alt="upload successful"></p>
+<p><img src="/.com//%5Cimages%5Cpasted-4.png%5C" alt="upload successful"></p>
+<p><img src="/.com//%5Cimages%5Cpasted-5.png%5C" alt="upload successful"></p>
 <pre><code>如上图所示，右侧是一个乘加单元的内部结构，其内部有一个寄存器，在TPU内对应存储Weight，此处存储矩阵B。左图是一个4×4的乘加阵列，假设矩阵B已经被加载到乘加阵列内部；显然，乘加阵列中每一列计算四个数的乘法并将其加在一起，即得到矩阵乘法的一个输出结果。依次输入矩阵A的四行，可以得到矩阵乘法的结果。
 
 由于硬件上的限制，需要对传播路径上添加寄存器，而添加寄存器相对于在第i个时刻处理的内容变成了i+1时刻处理；这一过程可以进行计算结果上的等效。如下图所示，采用z-1代表添加一个延时为1的寄存器，如果在纵向的psum传递路径上添加寄存器，为了保证结果正确，需要在横向的输入端也添加一个寄存器（即原本在i进行乘加计算的两个数均在i+1时刻进行计算）。给纵向每个psum路径添加寄存器后，输入端处理如右图所示。（下图仅考虑第一列的处理）</code></pre><p>clip_image002[5]</p>
@@ -356,6 +356,10 @@ TPU的边界（规划中）
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+              <a href="/2019/08/03/TPU中的指令并行和数据并行/" rel="prev" title="TPU中的指令并行和数据并行">
+                TPU中的指令并行和数据并行 <i class="fa fa-chevron-right"></i>
+              </a>
+            
           </div>
         </div>
     </footer>
@@ -398,7 +402,7 @@ TPU的边界（规划中）
         
           <a href="/archives/">
         
-          <span class="site-state-item-count">2</span>
+          <span class="site-state-item-count">4</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
