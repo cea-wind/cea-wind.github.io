@@ -58,22 +58,19 @@
 </script>
 
   <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
-<meta name="keywords" content="Neural Network,Tensor Processing Unit">
 <meta property="og:type" content="article">
-<meta property="og:title" content="动手写一个简单版的谷歌TPU">
-<meta property="og:url" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/index.html">
+<meta property="og:title" content="TPU中的脉动阵列及其实现">
+<meta property="og:url" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/index.html">
 <meta property="og:site_name" content="SEAWIND">
 <meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Cimages%5Cpasted-0.png">
-<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Cimages%5Cpasted-1.png">
-<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Cimages%5Cpasted-2.png">
-<meta property="og:updated_time" content="2019-08-02T16:40:54.000Z">
+<meta property="og:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-3.png">
+<meta property="og:updated_time" content="2019-08-02T16:37:36.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="动手写一个简单版的谷歌TPU">
+<meta name="twitter:title" content="TPU中的脉动阵列及其实现">
 <meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
-<meta name="twitter:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Cimages%5Cpasted-0.png">
-  <link rel="canonical" href="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/">
+<meta name="twitter:image" content="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/%5Cimages%5Cpasted-3.png">
+  <link rel="canonical" href="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/">
 
 
 <script id="page.configurations">
@@ -82,7 +79,7 @@
   };
 </script>
 
-  <title>动手写一个简单版的谷歌TPU | SEAWIND</title>
+  <title>TPU中的脉动阵列及其实现 | SEAWIND</title>
   
 
 
@@ -219,7 +216,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/08/03/TPU中的脉动阵列及其实现/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="">
@@ -233,7 +230,7 @@
       <header class="post-header">
 
         
-          <h2 class="post-title" itemprop="name headline">动手写一个简单版的谷歌TPU
+          <h2 class="post-title" itemprop="name headline">TPU中的脉动阵列及其实现
 
               
             
@@ -253,37 +250,12 @@
                 
               
 
-              <time title="创建时间：2019-08-02 22:34:00" itemprop="dateCreated datePublished" datetime="2019-08-02T22:34:00+08:00">2019-08-02</time>
+              <time title="创建时间：2019-08-03 00:17:00 / 修改时间：00:37:36" itemprop="dateCreated datePublished" datetime="2019-08-03T00:17:00+08:00">2019-08-03</time>
             </span>
           
             
 
             
-              <span class="post-meta-item">
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                
-                  <span class="post-meta-item-text">更新于</span>
-                
-                <time title="修改时间：2019-08-03 00:40:54" itemprop="dateModified" datetime="2019-08-03T00:40:54+08:00">2019-08-03</time>
-              </span>
-            
-          
-            <span class="post-meta-item">
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/TPU/" itemprop="url" rel="index"><span itemprop="name">TPU</span></a></span>
-
-                
-                
-              
-            </span>
           
 
           <br>
@@ -298,69 +270,71 @@
 
       
         <p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
-<h1 id="1-TPU设计分析"><a href="#1-TPU设计分析" class="headerlink" title="1. TPU设计分析"></a>1. TPU设计分析</h1><p>人工神经网络中的大量乘加计算（譬如三维卷积计算）大多都可以归纳成为矩阵计算。而之前有的各类处理器，在其硬件底层完成的是一个（或多个）标量/向量计算，这些处理器并没有充分利用矩阵计算中的数据复用；而Google TPU V1则是专门针对矩阵计算设计的功能强大的处理单元。参考Google公开的论文In-Datacenter Performance Analysis of a Tensor Processing Unit，TPU V1的结构框图如下所示</p>
-<p><img src="%5Cimages%5Cpasted-0.png" alt="upload successful"></p>
-<p>结构框图中最受瞩目的是巨大的Matrix Multiply Unit，共计64K的MAC可以在700MHz的工作频率下提供92T int8 Ops的性能。这样一个阵列进行矩阵计算的细节将会在基本单元-矩阵乘法阵列进行更进一步的阐述。TPU的设计关键在于充分利用这一乘加阵列，使其利用率尽可能高。<br>结构图中其他的部分基本都是为尽可能跑满这个矩计算阵列服务的，据此有以下设计</p>
-<ul>
-<li>Unified Buffer 提供了256×8b@700MHz的带宽（即167GiB/s，0.25Kib×700/1024/1024=167GiB/s），以保证计算单元不会因为缺少Data in而闲置；</li>
-<li>Local Unified Buffer 的空间高达24MiB，这意味着计算过程的中间结果几乎无需和外界进行交互，也就不存在因为数据带宽而限制计算能力的情况；</li>
-<li>Matrix Multiply Unit中每个MAC内置两个寄存器存储Weight，当一个进行计算时另一个进行新Weight的载入，以掩盖载入Weight的时间；</li>
-<li>30GiB/s的带宽完成256×256Weight的载入需要大约1430个Cycles，也就意味着一组Weight至少需要计算1430Cycles，因此Accumulators的深度需要为2K（1430取2的幂次，论文中给出的数值是1350，差异未知）；</li>
-<li>由于MAC和Activation模块之间需要同时进行计算，因此Accumulators需要用两倍存储来进行pingpang设计，因此Accumulators中存储的深度设计为4k；</li>
-</ul>
-<p>因此从硬件设计上来看，只要TPU ops/Weight Byte达到1400左右，理论上TPU就能以接近100%的效率进行计算。但在实际运行过程中，访存和计算之间的调度，读写之间的依赖关系（譬如Read After Write，需要等写完才能读），指令之间的流水线和空闲周期的处理都会在一定程度影响实际的性能。<br>为此，TPU设计了一组指令来控制其访问存和计算，主要的指令包括</p>
-<ul>
-<li>Read_Host_Memory</li>
-<li>Read_Weights</li>
-<li>MatrixMultiply/Convolve</li>
-<li>Activation</li>
-<li>Write_Host_Memory</li>
-</ul>
-<p>所有的设计都是为了让矩阵单元不闲下来，设计希望所有其他指令可以被MatrixMultiply指令所掩盖，因此TPU采用了分离数据获取和执行的设计（Decoupled-access/execute），这意味着在发出Read_Weights指令之后，MatrixMultiply就可以开始执行，不需要等待Read_Weight指令完成；如果Weight/Activation没有准备好，matrix unit会停止。</p>
-<p>需要注意的是，一条指令可以执行数千个周期，因此TPU设计过程中没有对流水线之间的空闲周期进行掩盖，这是因为由于Pipline带来的数十个周期的浪费对最终性能的影响不到1%。</p>
-<p>关于指令的细节依旧不是特别清楚，更多细节有待讨论补充。</p>
-<h1 id="2-TPU的简化"><a href="#2-TPU的简化" class="headerlink" title="2. TPU的简化"></a>2. TPU的简化</h1><p>实现一个完整的TPU有些过于复杂了，为了降低工作量、提高可行性，需要对TPU进行一系列的简化；为做区分，后文将简化后的TPU称为SimpleTPU。所有的简化应不失TPU本身的设计理念。</p>
-<p>TPU中为了进行数据交互，存在包括PCIE Interface、DDR Interface在内的各类硬件接口；此处并不考虑这些标准硬件接口的设计，各类数据交互均通过AXI接口完成；仅关心TPU内部计算的实现，更准确的来说，Simple TPU计划实现TPU core，即下图红框所示。</p>
-<p><img src="%5Cimages%5Cpasted-1.png" alt="upload successful"></p>
-<p>由于TPU的规模太大，乘法器阵列大小为256×256，这会给调试和综合带来极大的困难，因此此处将其矩阵乘法单元修改为32×32，其余数据位宽也进行相应修改，此类修改包括</p>
-<table>
-<thead>
-<tr>
-<th>Resource</th>
-<th>TPU</th>
-<th>SimpleTPU</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Matrix Multiply Unit</td>
-<td>256×256</td>
-<td>32×32</td>
-</tr>
-<tr>
-<td>Accumulators RAM</td>
-<td>4K×256×32b</td>
-<td>4K×32×32b</td>
-</tr>
-<tr>
-<td>Unified Buffer</td>
-<td>96K×256×8b</td>
-<td>16K×32×8b</td>
-</tr>
-</tbody></table>
-<ul>
-<li>由于Weight FIFO实现上的困难（难以采用C语言描述）, Weight采用1K<em>32</em>8b的BRAM存放，Pingpang使用；</li>
-<li>由于Matrix Multiply Unit和Accumulators之间的高度相关性，SimpleTPU将其合二为一了；</li>
-<li>由于Activation和Normalized/Pool之间的高度相关性，SimpleTPU将其合二为一了（TPU本身可能也是这样做的），同时只支持RELU激活函数；</li>
-<li>由于并不清楚Systolic Data Setup模块到底进行了什么操作，SimpleTPU将其删除了；SimpleTPU采用了另一种灵活而又简单的方式，即通过地址上的设计，来完成卷积计算；</li>
-<li>由于中间结果和片外缓存交互会增加instruction生成的困难，此处认为计算过程中无需访问片外缓存；(这也符合TPU本身的设计思路，但由于Unified Buffer大小变成了1/24，在这一约束下只能够运行更小的模型了)</li>
-<li>由于TPU V1并没有提供关于ResNet中加法操作的具体实现方式，SimpleTPU也不支持ResNet相关运算，但可以支持channel concate操作；（虽然有多种方式实现Residual Connection，但均需添加额外逻辑，似乎都会破坏原有的结构）</li>
-</ul>
-<p>简化后的框图如下所示，模块基本保持一致</p>
-<p><img src="%5Cimages%5Cpasted-2.png" alt="upload successful"></p>
-<h1 id="3-基于Xilinx-HLS的实现方案"><a href="#3-基于Xilinx-HLS的实现方案" class="headerlink" title="3. 基于Xilinx HLS的实现方案"></a>3. 基于Xilinx HLS的实现方案</h1><p>一般来说，芯片开发过程中多采用硬件描述语言（Hardware Description Language），譬如Verilog HDL或者VHDL进行开发和验证。但为了提高编码的效率，同时使得代码更为易懂，SimpleTPU试图采用C语言对硬件底层进行描述；并通过HLS技术将C代码翻译为HDL代码。由于之前使用过Xilinx HLS工具，因此此处依旧采用Xilinx HLS进行开发；关于Xilinx HLS的相关信息，可以参考高层次综合（HLS）-简介，以及一个简单的开发实例利用Xilinx HLS实现LDPC译码器。</p>
-<p>虽然此处选择了Xilinx HLS工具，但据我所了解，HLS可能并不适合完成这种较为复杂的IP设计。尽管SimpleTPU已经足够简单，但依旧无法在一个函数中完成所有功能，而HLS并不具有函数间相对复杂的描述能力，两个模块之间往往只能是调用关系或者通过FIFO Channel相连。但由于HLS易写、易读、易验证，此处依旧选择了HLS，并通过一些手段规避掉了部分问题。真实应用中，采用HDL或者HDL结合HLS进行开发是更为合适的选择。</p>
-<p>按规划之后将给出两个关键计算单元的实现，以及控制逻辑和指令的设计方法；最后将给出一个实际的神经网络及其仿真结果和分析。</p>
+<p>动手写一个简单版的谷歌TPU系列目录<br>    谷歌TPU概述和简化</p>
+<pre><code>TPU中的脉动阵列及其实现
 
+神经网络中的归一化和池化的硬件实现
+
+TPU中的指令并行和数据并行
+
+Simple TPU的设计和性能评估
+
+SimpleTPU实例：图像分类
+
+拓展
+
+TPU的边界（规划中）
+
+重新审视深度神经网络中的并行（规划中）
+
+
+
+本文将对TPU中的矩阵计算单元进行分析，并给出了SimpleTPU中32×32的脉动阵列的实现方式和采用该阵列进行卷积计算的方法，以及一个卷积的设计实例，验证了其正确性。代码地址https://github.com/cea-wind/SimpleTPU/tree/master/lab1</code></pre><ol>
+<li>脉动阵列和矩阵计算<br> 脉动阵列是一种复用输入数据的设计，对于TPU中的二维脉动阵列，很多文章中构造了脉动阵列的寄存器模型，导致阅读较为困难，而实际上TPU中的二维脉动阵列设计思路十分直接。譬如当使用4×4的脉动阵列计算4×4的矩阵乘法时，有</li>
+</ol>
+<p><img src="%5Cimages%5Cpasted-3.png" alt="upload successful"></p>
+<p>clip_image002</p>
+<pre><code>如上图所示，右侧是一个乘加单元的内部结构，其内部有一个寄存器，在TPU内对应存储Weight，此处存储矩阵B。左图是一个4×4的乘加阵列，假设矩阵B已经被加载到乘加阵列内部；显然，乘加阵列中每一列计算四个数的乘法并将其加在一起，即得到矩阵乘法的一个输出结果。依次输入矩阵A的四行，可以得到矩阵乘法的结果。
+
+由于硬件上的限制，需要对传播路径上添加寄存器，而添加寄存器相对于在第i个时刻处理的内容变成了i+1时刻处理；这一过程可以进行计算结果上的等效。如下图所示，采用z-1代表添加一个延时为1的寄存器，如果在纵向的psum传递路径上添加寄存器，为了保证结果正确，需要在横向的输入端也添加一个寄存器（即原本在i进行乘加计算的两个数均在i+1时刻进行计算）。给纵向每个psum路径添加寄存器后，输入端处理如右图所示。（下图仅考虑第一列的处理）</code></pre><p>clip_image002[5]</p>
+<pre><code>当在横向的数据路径上添加寄存器时，只要每一列都添加相同延时，那么计算结果会是正确的，但是结果会在后一个周期输出，如下图所示</code></pre><p>clip_image002[7]</p>
+<pre><code>上述分析可以，一个4×4的乘加阵列可以计算一组4×4的乘加阵列完成计算，而对于其他维度的乘法，则可以通过多次调用的方式完成计算。譬如（4×4）×（4×8），可以将（4×8）的乘法拆分乘两个4×4的矩阵乘；而对于（4×8）×（8×4），两个矩阵计算完成后还需要将其结果累加起来，这也是为何TPU在乘加阵列后需要添加Accumulators的原因。最终脉动阵列设计如下所示（以4×4为例）</code></pre><p>clip_image002[11]</p>
+<ol start="2">
+<li><p>脉动阵列的实现<br> 如第一节所述，可通过HLS构建一个脉动阵列并进行仿真。类似TPU中的设计，采用INT8作为计算阵列的输入数据类型，为防止计算过程中的溢出，中间累加结果采用INT32存储。由于INT32的表示范围远高于INT8，认为计算过程中不存在上溢的可能性，因此没有对溢出进行处理。脉动阵列的计算结果数据类型为INT32，会在后文进行下一步处理。</p>
+<p> 脉动阵列实现的关键代码包括</p>
+</li>
+<li><p>Feature向右侧移动</p>
+</li>
+</ol>
+<p>复制代码<br>for(int j=0;j&lt;MXU_ROWNUM;j++){<br>    for(int k=MXU_ROWNUM+MXU_COLNUM-2;k&gt;=0;k–){<br>        if(k&gt;0)<br>            featreg[j][k] = featreg[j][k-1];<br>        else<br>            if(i&lt;mxuparam.ubuf_raddr_num)<br>                featreg[j][k] = ubuf[ubuf_raddr][j];<br>            else<br>                featreg[j][k] = 0;<br>    }<br>}<br>复制代码</p>
+<ol start="2">
+<li>乘法计算以及向下方移动的psum</li>
+</ol>
+<p>复制代码<br>for(int j=MXU_ROWNUM-1;j&gt;=0;j–){<br>    for(int k=0;k&lt;MXU_COLNUM;k++){<br>        ap_int&lt;32&gt; biasreg;<br>        biasreg(31,24)=weightreg[MXU_ROWNUM+0][k];<br>        biasreg(23,16)=weightreg[MXU_ROWNUM+1][k];<br>        biasreg(15, 8)=weightreg[MXU_ROWNUM+2][k];<br>        biasreg( 7, 0)=weightreg[MXU_ROWNUM+3][k];<br>        if(j==0)<br>            psumreg[j][k] = featreg[j][k+j]<em>weightreg[j][k] + biasreg;<br>        else<br>            psumreg[j][k] = featreg[j][k+j]</em>weightreg[j][k] + psumreg[j-1][k];<br>    }<br>}<br>复制代码<br>    完成代码编写后可进行行为级仿真，可以看出整个计算阵列的时延关系</p>
+<ol>
+<li>对于同一列而言，下一行的输入比上一行晚一个周期</li>
+</ol>
+<p>Screenshot from 2019-06-11 01-05-31</p>
+<ol start="2">
+<li>对于同一行而言，下一列的输入比上一列晚一个周期（注意同一行输入数据是一样的）</li>
+</ol>
+<p>Screenshot from 2019-06-11 01-06-08</p>
+<ol start="3">
+<li>下一列的输出结果比上一列晚一个周期</li>
+</ol>
+<p>Screenshot from 2019-06-11 01-07-39</p>
+<ol start="3">
+<li><p>从矩阵乘法到三维卷积<br> 卷积神经网络计算过程中，利用kh×kw×C的卷积核和H×W×C的featuremap进行乘加计算。以3×3卷积为例，如下图所示，省略Channel方向，拆分kh和kw方向分别和featuremap进行卷积，可以得到9个输出结果，这9个输出结果按照一定规律加在一起，就可以得到追后的卷积计算结果。下图给出了3×3卷积，padding=2时的计算示意图。按F1-F9给9个矩阵乘法结果编号，输出featuremap中点（2，1）——指第二行第一个点——是F1（1，1），F2（1，2），F3（1，3），F4（2，1），F5（2，2），F6（2，3），F7（3，1），F8（3，2），F9（3，3）的和。</p>
+<p>clip_image002[13]</p>
+<p> 下面的MATLAB代码阐明了这种计算三维卷积的方式，9个结果错位相加的MATLAB代码如下所示</p>
+</li>
+</ol>
+<p>复制代码<br>output = out1;<br>output(2:end,2:end,:) = output(2:end,2:end,:) + out2(1:end-1,1:end-1,:);<br>output(2:end,:,:) = output(2:end,:,:) + out3(1:end-1,:,:);<br>output(2:end,1:end-1,:) = output(2:end,1:end-1,:) + out4(1:end-1,2:end,:);<br>output(:,2:end,:) = output(:,2:end,:) + out5(:,1:end-1,:);<br>output(:,1:end-1,:) = output(:,1:end-1,:) + out6(:,2:end,:);<br>output(1:end-1,2:end,:) = output(1:end-1,2:end,:) + out7(2:end,1:end-1,:);<br>output(1:end-1,:,:) = output(1:end-1,:,:) + out8(2:end,:,:);<br>output(1:end-1,1:end-1,:) = output(1:end-1,1:end-1,:) + out9(2:end,2:end,:);<br>复制代码<br>    而在实际的HLS代码以及硬件实现上，部分未使用的值并未计算，因此实际计算的index和上述示意图并不相同，具体可参考testbench中的配置方法。</p>
+<ol start="4">
+<li>其他<br> GPU的volta架构中引入了Tensor Core来计算4×4的矩阵乘法，由于4×4的阵列规模较小，其内部可能并没有寄存器，设计可能类似第一节图1所示。由于其平均一个周期就能完成4×4矩阵计算，猜测采用第一节中阵列进行堆叠，如下图所示。</li>
+</ol>
+<p>image</p>
+<pre><code>一些FPGA加速库中利用脉动阵列实现了矩阵乘法，不过不同与TPU中将一个输入固定在MAC内部，还可以选择将psum固定在MAC内部，而两个输入都是时刻在变化的。这几种方式是类似的，就不再展开描述了。</code></pre>
     </div>
 
     
@@ -368,25 +342,17 @@
     
 
     <footer class="post-footer">
-          
-        
-        <div class="post-tags">
-            <a href="/tags/Neural-Network/" rel="tag"># Neural Network</a>
-          
-            <a href="/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
-          
-        </div>
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
+              <a href="/2019/08/02/动手写一个简单版的谷歌TPU/" rel="next" title="动手写一个简单版的谷歌TPU">
+                <i class="fa fa-chevron-left"></i> 动手写一个简单版的谷歌TPU
+              </a>
+            
           </div>
 
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-              <a href="/2019/08/03/TPU中的脉动阵列及其实现/" rel="prev" title="TPU中的脉动阵列及其实现">
-                TPU中的脉动阵列及其实现 <i class="fa fa-chevron-right"></i>
-              </a>
-            
           </div>
         </div>
     </footer>
@@ -416,17 +382,8 @@
 
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-inner">
-        <ul class="sidebar-nav motion-element">
-          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
-            文章目录
-          </li>
-          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
-            站点概览
-          </li>
-        </ul>
-      
 
-      <div class="site-overview-wrap sidebar-panel">
+      <div class="site-overview-wrap sidebar-panel sidebar-panel-active">
         <div class="site-overview">
 
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -485,23 +442,6 @@
 
         </div>
       </div>
-      <!--noindex-->
-        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
-          <div class="post-toc">
-
-            
-            
-            
-            
-
-            
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-TPU设计分析"><span class="nav-number">1.</span> <span class="nav-text">1. TPU设计分析</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-TPU的简化"><span class="nav-number">2.</span> <span class="nav-text">2. TPU的简化</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-基于Xilinx-HLS的实现方案"><span class="nav-number">3.</span> <span class="nav-text">3. 基于Xilinx HLS的实现方案</span></a></li></ol></div>
-            
-
-          </div>
-        </div>
-      <!--/noindex-->
-      
 
     </div>
   </aside>
