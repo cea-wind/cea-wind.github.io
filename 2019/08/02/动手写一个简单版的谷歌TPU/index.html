@@ -57,14 +57,23 @@
   };
 </script>
 
-  <meta property="og:type" content="website">
-<meta property="og:title" content="SEAWIND">
-<meta property="og:url" content="http://yoursite.com/index.html">
+  <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
+<meta name="keywords" content="Neural Network,Tensor Processing Unit">
+<meta property="og:type" content="article">
+<meta property="og:title" content="动手写一个简单版的谷歌TPU">
+<meta property="og:url" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/index.html">
 <meta property="og:site_name" content="SEAWIND">
+<meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
 <meta property="og:locale" content="zh">
+<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Ccea-wind.github.io%5Cimages%5Cpasted-0.png">
+<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Ccea-wind.github.io%5Cimages%5Cpasted-1.png">
+<meta property="og:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Ccea-wind.github.io%5Cimages%5Cpasted-2.png">
+<meta property="og:updated_time" content="2019-08-02T16:15:48.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="SEAWIND">
-  <link rel="canonical" href="http://yoursite.com/">
+<meta name="twitter:title" content="动手写一个简单版的谷歌TPU">
+<meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版">
+<meta name="twitter:image" content="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/%5Ccea-wind.github.io%5Cimages%5Cpasted-0.png">
+  <link rel="canonical" href="http://yoursite.com/2019/08/02/动手写一个简单版的谷歌TPU/">
 
 
 <script id="page.configurations">
@@ -73,7 +82,7 @@
   };
 </script>
 
-  <title>SEAWIND</title>
+  <title>动手写一个简单版的谷歌TPU | SEAWIND</title>
   
 
 
@@ -112,7 +121,7 @@
 
 <body itemscope itemtype="http://schema.org/WebPage" lang="zh">
 
-  <div class="container sidebar-position-left page-home">
+  <div class="container sidebar-position-left page-post-detail">
     <div class="headband"></div>
 
     <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
@@ -201,8 +210,9 @@
 
           <div id="content" class="content">
             
-  <section id="posts" class="posts-expand">
-      
+
+  <div id="posts" class="posts-expand">
+    
 
   <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
   
@@ -223,10 +233,8 @@
       <header class="post-header">
 
         
-          <h2 class="post-title" itemprop="name headline">
-                
-                
-                <a href="/cea-wind.github.io/2019/08/02/动手写一个简单版的谷歌TPU/" class="post-title-link" itemprop="url">动手写一个简单版的谷歌TPU</a>
+          <h2 class="post-title" itemprop="name headline">动手写一个简单版的谷歌TPU
+
               
             
           </h2>
@@ -289,8 +297,7 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          
-            <p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
+        <p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
 <h1 id="1-TPU设计分析"><a href="#1-TPU设计分析" class="headerlink" title="1. TPU设计分析"></a>1. TPU设计分析</h1><p>人工神经网络中的大量乘加计算（譬如三维卷积计算）大多都可以归纳成为矩阵计算。而之前有的各类处理器，在其硬件底层完成的是一个（或多个）标量/向量计算，这些处理器并没有充分利用矩阵计算中的数据复用；而Google TPU V1则是专门针对矩阵计算设计的功能强大的处理单元。参考Google公开的论文In-Datacenter Performance Analysis of a Tensor Processing Unit，TPU V1的结构框图如下所示</p>
 <p><img src="%5Ccea-wind.github.io%5Cimages%5Cpasted-0.png" alt="upload successful"></p>
 <p>结构框图中最受瞩目的是巨大的Matrix Multiply Unit，共计64K的MAC可以在700MHz的工作频率下提供92T int8 Ops的性能。这样一个阵列进行矩阵计算的细节将会在基本单元-矩阵乘法阵列进行更进一步的阐述。TPU的设计关键在于充分利用这一乘加阵列，使其利用率尽可能高。<br>结构图中其他的部分基本都是为尽可能跑满这个矩计算阵列服务的，据此有以下设计</p>
@@ -331,9 +338,6 @@
 <p>虽然此处选择了Xilinx HLS工具，但据我所了解，HLS可能并不适合完成这种较为复杂的IP设计。尽管SimpleTPU已经足够简单，但依旧无法在一个函数中完成所有功能，而HLS并不具有函数间相对复杂的描述能力，两个模块之间往往只能是调用关系或者通过FIFO Channel相连。但由于HLS易写、易读、易验证，此处依旧选择了HLS，并通过一些手段规避掉了部分问题。真实应用中，采用HDL或者HDL结合HLS进行开发是更为合适的选择。</p>
 <p>按规划之后将给出两个关键计算单元的实现，以及控制逻辑和指令的设计方法；最后将给出一个实际的神经网络及其仿真结果和分析。</p>
 
-          
-        
-      
     </div>
 
     
@@ -341,7 +345,14 @@
     
 
     <footer class="post-footer">
-        <div class="post-eof"></div>
+          
+        
+        <div class="post-tags">
+            <a href="/cea-wind.github.io/tags/Neural-Network/" rel="tag"># Neural Network</a>
+          
+            <a href="/cea-wind.github.io/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
+          
+        </div>
     </footer>
   </div>
   
@@ -349,14 +360,12 @@
   
   </article>
 
-    
-  </section>
-
-  
+  </div>
 
 
           </div>
           
+
 
         </div>
           
@@ -371,8 +380,17 @@
 
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-inner">
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Inhaltsverzeichnis
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Übersicht
+          </li>
+        </ul>
+      
 
-      <div class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <div class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
 
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -431,6 +449,23 @@
 
         </div>
       </div>
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-TPU设计分析"><span class="nav-number">1.</span> <span class="nav-text">1. TPU设计分析</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-TPU的简化"><span class="nav-number">2.</span> <span class="nav-text">2. TPU的简化</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-基于Xilinx-HLS的实现方案"><span class="nav-number">3.</span> <span class="nav-text">3. 基于Xilinx HLS的实现方案</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
 
     </div>
   </aside>
@@ -486,6 +521,10 @@
 
 
   
+  <script src="/cea-wind.github.io/js/scrollspy.js?v=7.3.0"></script>
+<script src="/cea-wind.github.io/js/post-details.js?v=7.3.0"></script>
+
+
 
   <script src="/cea-wind.github.io/js/next-boot.js?v=7.3.0"></script>
 
