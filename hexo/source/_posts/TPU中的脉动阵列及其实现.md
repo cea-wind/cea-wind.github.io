@@ -34,7 +34,9 @@ author:
 
 ![upload successful](\images\pasted-3.png)
 
-clip_image002
+![upload successful](\\images\pasted-4.png\)
+
+![upload successful](\\images\pasted-5.png\)
 
     如上图所示，右侧是一个乘加单元的内部结构，其内部有一个寄存器，在TPU内对应存储Weight，此处存储矩阵B。左图是一个4×4的乘加阵列，假设矩阵B已经被加载到乘加阵列内部；显然，乘加阵列中每一列计算四个数的乘法并将其加在一起，即得到矩阵乘法的一个输出结果。依次输入矩阵A的四行，可以得到矩阵乘法的结果。
 
