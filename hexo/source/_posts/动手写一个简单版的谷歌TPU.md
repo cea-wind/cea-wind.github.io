@@ -10,7 +10,7 @@ date: 2019-08-02 22:34:00
 # 1. TPU设计分析
 人工神经网络中的大量乘加计算（譬如三维卷积计算）大多都可以归纳成为矩阵计算。而之前有的各类处理器，在其硬件底层完成的是一个（或多个）标量/向量计算，这些处理器并没有充分利用矩阵计算中的数据复用；而Google TPU V1则是专门针对矩阵计算设计的功能强大的处理单元。参考Google公开的论文In-Datacenter Performance Analysis of a Tensor Processing Unit，TPU V1的结构框图如下所示
 
-![upload successful](\cea-wind.github.io\images\pasted-0.png)
+![upload successful](\images\pasted-0.png)
 
 结构框图中最受瞩目的是巨大的Matrix Multiply Unit，共计64K的MAC可以在700MHz的工作频率下提供92T int8 Ops的性能。这样一个阵列进行矩阵计算的细节将会在基本单元-矩阵乘法阵列进行更进一步的阐述。TPU的设计关键在于充分利用这一乘加阵列，使其利用率尽可能高。
 结构图中其他的部分基本都是为尽可能跑满这个矩计算阵列服务的，据此有以下设计
@@ -41,12 +41,12 @@ date: 2019-08-02 22:34:00
 TPU中为了进行数据交互，存在包括PCIE Interface、DDR Interface在内的各类硬件接口；此处并不考虑这些标准硬件接口的设计，各类数据交互均通过AXI接口完成；仅关心TPU内部计算的实现，更准确的来说，Simple TPU计划实现TPU core，即下图红框所示。
 
 
-![upload successful](\cea-wind.github.io\images\pasted-1.png)
+![upload successful](\images\pasted-1.png)
 
 由于TPU的规模太大，乘法器阵列大小为256×256，这会给调试和综合带来极大的困难，因此此处将其矩阵乘法单元修改为32×32，其余数据位宽也进行相应修改，此类修改包括
 
 Resource | TPU | SimpleTPU
---- | 
+--- | --- | ---
 Matrix Multiply Unit | 256×256 | 32×32
 Accumulators RAM | 4K×256×32b | 4K×32×32b
 Unified Buffer | 96K×256×8b | 16K×32×8b
@@ -60,7 +60,7 @@ Unified Buffer | 96K×256×8b | 16K×32×8b
 
 简化后的框图如下所示，模块基本保持一致
 
-![upload successful](\cea-wind.github.io\images\pasted-2.png)
+![upload successful](\images\pasted-2.png)
 
 # 3. 基于Xilinx HLS的实现方案
 一般来说，芯片开发过程中多采用硬件描述语言（Hardware Description Language），譬如Verilog HDL或者VHDL进行开发和验证。但为了提高编码的效率，同时使得代码更为易懂，SimpleTPU试图采用C语言对硬件底层进行描述；并通过HLS技术将C代码翻译为HDL代码。由于之前使用过Xilinx HLS工具，因此此处依旧采用Xilinx HLS进行开发；关于Xilinx HLS的相关信息，可以参考高层次综合（HLS）-简介，以及一个简单的开发实例利用Xilinx HLS实现LDPC译码器。
