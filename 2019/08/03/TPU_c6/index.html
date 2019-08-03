@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html class="theme-next pisces use-motion" lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="generator" content="Hexo 3.9.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.3.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.3.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.3.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.3.0" color="#222">
+
+<link rel="stylesheet" href="/css/main.css?v=7.3.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.3.0',
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    search: {
+      root: '/',
+      path: ''
+    },
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: '复制',
+      copy_success: '复制成功',
+      copy_failure: '复制失败'
+    }
+  };
+</script>
+
+  <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta name="keywords" content="Tensor Processing Unit,MLP,Image Classification,Hardware Accelarator">
+<meta property="og:type" content="article">
+<meta property="og:title" content="神经网络加速器应用实例：图像分类">
+<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/TPU_c6/index.html">
+<meta property="og:site_name" content="SEAWIND">
+<meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161141.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161821.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161851.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161808.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161933.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161950.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803162002.png">
+<meta property="og:updated_time" content="2019-08-03T09:27:28.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="神经网络加速器应用实例：图像分类">
+<meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161141.png">
+  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/TPU_c6/">
+
+
+<script id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>神经网络加速器应用实例：图像分类 | SEAWIND</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .motion-element,
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-title { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta">
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">SEAWIND</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+    <ul id="menu" class="menu">
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+      
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+      
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+    </ul>
+</nav>
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+            
+
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/TPU_c6/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="SEAWIND">
+    </span>
+      <header class="post-header">
+
+        
+          <h2 class="post-title" itemprop="name headline">神经网络加速器应用实例：图像分类
+
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-08-03 03:56:17 / 修改时间：17:27:28" itemprop="dateCreated datePublished" datetime="2019-08-03T03:56:17+08:00">2019-08-03</time>
+            </span>
+          
+            
+
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/TPU/" itemprop="url" rel="index"><span itemprop="name">TPU</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          <br>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
+<ul>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c1/">谷歌TPU概述和简化</a></li>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a></li>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a></li>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c4/">TPU中的指令并行和数据并行</a></li>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c5/">Simple TPU的设计和性能评估</a></li>
+<li><a href="https://cea-wind.github.io/2019/08/02/TPU_c6/">SimpleTPU实例：图像分类</a></li>
+</ul>
+</blockquote>
+<h1 id="1-不仅仅是硬件的AI-Inference"><a href="#1-不仅仅是硬件的AI-Inference" class="headerlink" title="1. 不仅仅是硬件的AI Inference"></a>1. 不仅仅是硬件的AI Inference</h1><p><a href="https://cea-wind.github.io/2019/08/02/TPU_c5/">Simple TPU的设计和性能评估</a>中，一个神经网络加速器的硬件雏形已经搭建完成了；在<a href="https://github.com/cea-wind/SimpleTPU" target="_blank" rel="noopener">https://github.com/cea-wind/SimpleTPU</a> 上给出了相应的代码，和RTL仿真结果。在<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>和<a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a>中，针对硬件实现中的关键模块也进行了仿真分析。但是，最终并没有给出一个可以实际运行的例子。这意味着，即使将这一部分代码应用到FPGA上，或者是实现在ASIC上后，也只有纸面性能却并不可用。</p>
+<p>和很多其他的硬件设计不同，以Xilinx的AI Inference 解决方案为例（即之前的深鉴科技），用于AI Inference的设计需要考虑神经网络计算中的多样性，神经网络加速器是一个软件+硬件的解决方案。Xilinx叙述如下图<a href="https://www.xilinx.com/products/design-tools/ai-inference.html" target="_blank" rel="noopener">原始链接</a>。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161141.png" alt></p>
+<p>从上往下看，这一套解决方案包括</p>
+<ul>
+<li>主流的神经网络的框架的支持，包括caffe、Tensorflow和mxnet</li>
+<li>提供模型压缩和优化的工具，以期在硬件上又更好的效能</li>
+<li>提供模型量化的功能，使得浮点模型转化为定点模型</li>
+<li>提供了Compiler，将模型映射为二进制指令序列</li>
+<li>和Compiler相结合的Hardware</li>
+</ul>
+<p>这意味着想真正使用之前设计的神经网络加速器——SimpleTPU，还需要软件的配合。即便模型压缩不在考虑范围内，也需要将模型量化为int8精度（SimpleTPU只支持int8乘法），同时利用Compiler生成指令序列。受限于个人能力，由于配套软件的缺失，下面的例子中的量化和指令均由手工生成。也正是由于这一原因，网络结构会尽可能简单，仅以保证本系列文章完整性为目的。</p>
+<h1 id="2-MLP分类实例"><a href="#2-MLP分类实例" class="headerlink" title="2. MLP分类实例"></a>2. MLP分类实例</h1><p>利用MLP对MNIST数据集进行手写数字分类的网络结构定义如下</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">class MLP(nn.Module):</span><br><span class="line">    def __init__(self):</span><br><span class="line">        super(MLP, self).__init__()</span><br><span class="line">        self.hidden = nn.Linear(784,64)</span><br><span class="line">        self.fc = nn.Linear(64,10)</span><br><span class="line"> </span><br><span class="line">    def forward(self, x):</span><br><span class="line">        x = x.view(-1,784)</span><br><span class="line">        x = self.hidden(x)</span><br><span class="line">        x = self.fc(x)</span><br><span class="line">        return F.log_softmax(x, dim=1)</span><br></pre></td></tr></table></figure>
+
+<p>生成指令后将其作为SimpleTPU的输入，并对其进行RTL仿真（testbench已经写好，直接运行即可），仿真结果如下图所示</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161821.png" alt></p>
+<p>前16张图的分类结果如下图所示</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161851.png" alt></p>
+<p>根据计算结果，可以分析得到其效率为84%。（去除了13K个用于读取图片和写回结果的时间，实际应用中，这一事件也会被计算时间覆盖）</p>
+<table>
+<thead>
+<tr>
+<th>LOC</th>
+<th>Layers</th>
+<th>Nonlinear function</th>
+<th>Weights</th>
+<th>Batch Size</th>
+<th>% of Deployed</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>10</td>
+<td>2 FC</td>
+<td>Relu</td>
+<td>5M</td>
+<td>512</td>
+<td>16%</td>
+</tr>
+</tbody></table>
+<p>作为参考，谷歌TPU中的数值为（尽管Simple TPU效率较高，但由于规模不同，无法直接对比效率；由于SimpleTPU完全按TPU设计，实际性能不可能高于TPU）</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161808.png" alt></p>
+<h2 id="2-1-MLP运行分析"><a href="#2-1-MLP运行分析" class="headerlink" title="2.1 MLP运行分析"></a>2.1 MLP运行分析</h2><p>通过仿真波形，可以更直观的看出SimpleTPU的运行状态。下图中，读取Weight、乘加运算单元和Pooling共同工作可以反应TPU中的指令并行和数据并行中提到的指令并行。(由上倒下的ap_start分别是MXU，POOL，LOAD WEIGHT和INSTR FETCH的工作指示信号，同时拉高代表同时工作)</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161933.png" alt></p>
+<p>观察MXU内部的信号，可以看到计算过程中的数据并行（一条指令控制多组数据，且一个周期完成多组计算）。MXU每个周期都输出psum取值，一共有32个psum，计算一个psum需要32次乘加计算。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161950.png" alt></p>
+<p>SimpleTPU为什么不够快（效率并没有接近100%）？这一问题可有下面的仿真波形看出（每次MXU启动前后都有若干个周期没有输出有效结果）</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803162002.png" alt></p>
+<p>由于每次MXU执行一条向量计算指令会又若干个空闲的周期（超过64个周期，损失了10%以上的性能），导致了SimpleTPU在这一个网络上性能只有84%。MXU在启动之前需要32个周期来填满整个脉动阵列，而在输入结束后还需要32个周期来输出最后的结果。当采用HLS编写代码是，难以以这一控制力度来优化MXU的性能。如果采用Verilog HDL或者VHDL，可以采用指令之间的流水设计来消除这一延时。</p>
+<h1 id="3-CNN"><a href="#3-CNN" class="headerlink" title="3. CNN"></a>3. CNN</h1><p>由于手工对神经网络进行量化和layer间融合以及生成指令的复杂性，基于CNN的图像分类/分割网络的运行实例被无限期暂停了。</p>
+<p>但是一个卷积计算的实例已经在<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>中给出，证明了SimpleTPU计算卷积的能力。</p>
+<p>根据<a href="https://cea-wind.github.io/2019/08/02/TPU_c5/">Simple TPU的设计和性能评估</a>给出的特性，SimpleTPU可以高效支持绝大多数Operator，完成计算机视觉中的多种任务。当然，最大的缺陷在于SimpleTPU不显式支持ResNet，无法直接计算residual connection中的加法（可以进行channel concatenate之后再利用一次乘加计算间接支持resnet）。</p>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          
+        
+        <div class="post-tags">
+            <a href="/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
+          
+            <a href="/tags/MLP/" rel="tag"># MLP</a>
+          
+            <a href="/tags/Image-Classification/" rel="tag"># Image Classification</a>
+          
+            <a href="/tags/Hardware-Accelarator/" rel="tag"># Hardware Accelarator</a>
+          
+        </div>
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+              <a href="/2019/08/03/TPU_c5/" rel="next" title="Simple TPU的设计和性能评估">
+                <i class="fa fa-chevron-left"></i> Simple TPU的设计和性能评估
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+          </div>
+        </div>
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name"></p>
+  <div class="site-description motion-element" itemprop="description"></div>
+</div>
+  <nav class="site-state motion-element">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">6</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        
+        
+          
+        
+        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-name">分类</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+        <span class="site-state-item-count">14</span>
+        <span class="site-state-item-name">标签</span>
+        </a>
+      </div>
+    
+  </nav>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+      
+      
+        
+      
+      
+        
+      
+        <a href="https://github.com/cea-wind" title="GitHub &rarr; https://github.com/cea-wind" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+    
+  </div>
+
+
+
+        </div>
+      </div>
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-不仅仅是硬件的AI-Inference"><span class="nav-text">1. 不仅仅是硬件的AI Inference</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-MLP分类实例"><span class="nav-text">2. MLP分类实例</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#2-1-MLP运行分析"><span class="nav-text">2.1 MLP运行分析</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-CNN"><span class="nav-text">3. CNN</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder"></span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.3.0</div>
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+      </div>
+
+    
+
+  </div>
+
+  
+  <script src="/lib/jquery/index.js?v=3.4.1"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  <script src="/js/utils.js?v=7.3.0"></script>
+  <script src="/js/motion.js?v=7.3.0"></script>
+
+  
+  <script src="/js/affix.js?v=7.3.0"></script>
+  <script src="/js/schemes/pisces.js?v=7.3.0"></script>
+
+
+  
+  <script src="/js/scrollspy.js?v=7.3.0"></script>
+<script src="/js/post-details.js?v=7.3.0"></script>
+
+
+
+  <script src="/js/next-boot.js?v=7.3.0"></script>
+
+  
+
+  
+
+  
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>

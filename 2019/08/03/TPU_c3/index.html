@@ -57,17 +57,19 @@
   };
 </script>
 
-  <meta property="og:type" content="article">
-<meta property="og:title" content="Untitled">
-<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/Untitled/index.html">
+  <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta name="keywords" content="Pooling,Normalization">
+<meta property="og:type" content="article">
+<meta property="og:title" content="神经网络中的归一化和池化的硬件实现">
+<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/TPU_c3/index.html">
 <meta property="og:site_name" content="SEAWIND">
+<meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="http://cea-wind.github.io/.io//1.png">
-<meta property="og:updated_time" content="2019-08-02T17:27:46.000Z">
+<meta property="og:updated_time" content="2019-08-03T07:21:22.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Untitled">
-<meta name="twitter:image" content="http://cea-wind.github.io/.io//1.png">
-  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/Untitled/">
+<meta name="twitter:title" content="神经网络中的归一化和池化的硬件实现">
+<meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/TPU_c3/">
 
 
 <script id="page.configurations">
@@ -76,7 +78,7 @@
   };
 </script>
 
-  <title>Untitled | SEAWIND</title>
+  <title>神经网络中的归一化和池化的硬件实现 | SEAWIND</title>
   
 
 
@@ -213,7 +215,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/Untitled/">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/TPU_c3/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="">
@@ -227,7 +229,7 @@
       <header class="post-header">
 
         
-          <h2 class="post-title" itemprop="name headline">Untitled
+          <h2 class="post-title" itemprop="name headline">神经网络中的归一化和池化的硬件实现
 
               
             
@@ -247,12 +249,27 @@
                 
               
 
-              <time title="创建时间：2019-08-03 00:57:00 / 修改时间：01:27:46" itemprop="dateCreated datePublished" datetime="2019-08-03T00:57:00+08:00">2019-08-03</time>
+              <time title="创建时间：2019-08-03 00:56:17 / 修改时间：15:21:22" itemprop="dateCreated datePublished" datetime="2019-08-03T00:56:17+08:00">2019-08-03</time>
             </span>
           
             
 
             
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/TPU/" itemprop="url" rel="index"><span itemprop="name">TPU</span></a></span>
+
+                
+                
+              
+            </span>
           
 
           <br>
@@ -266,7 +283,10 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <p><img src="/.io//1.png" alt="upload successful"></p>
+        <blockquote>
+<p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
+</blockquote>
+<p>TBD</p>
 
     </div>
 
@@ -275,10 +295,18 @@
     
 
     <footer class="post-footer">
+          
+        
+        <div class="post-tags">
+            <a href="/tags/Pooling/" rel="tag"># Pooling</a>
+          
+            <a href="/tags/Normalization/" rel="tag"># Normalization</a>
+          
+        </div>
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
-              <a href="/2019/08/03/TPU中的指令并行和数据并行/" rel="next" title="TPU中的指令并行和数据并行">
-                <i class="fa fa-chevron-left"></i> TPU中的指令并行和数据并行
+              <a href="/2019/08/03/TPU_c2/" rel="next" title="TPU中的脉动阵列及其实现">
+                <i class="fa fa-chevron-left"></i> TPU中的脉动阵列及其实现
               </a>
             
           </div>
@@ -286,6 +314,10 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+              <a href="/2019/08/03/TPU_c4/" rel="prev" title="TPU中的指令并行和数据并行">
+                TPU中的指令并行和数据并行 <i class="fa fa-chevron-right"></i>
+              </a>
+            
           </div>
         </div>
     </footer>
@@ -328,7 +360,7 @@
         
           <a href="/archives/">
         
-          <span class="site-state-item-count">4</span>
+          <span class="site-state-item-count">6</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -364,12 +396,49 @@
         
           
         
-        <span class="site-state-item-count">2</span>
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+        <span class="site-state-item-count">14</span>
         <span class="site-state-item-name">标签</span>
         </a>
       </div>
     
   </nav>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+      
+      
+        
+      
+      
+        
+      
+        <a href="https://github.com/cea-wind" title="GitHub &rarr; https://github.com/cea-wind" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+    
+  </div>
 
 
 
@@ -456,6 +525,8 @@
   </script>
 
 
+
+  
 
 
 
