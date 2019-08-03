@@ -67,7 +67,7 @@
 <meta property="og:locale" content="zh-CN">
 <meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171553.png">
 <meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171640.png">
-<meta property="og:updated_time" content="2019-08-03T09:20:36.000Z">
+<meta property="og:updated_time" content="2019-08-03T09:47:48.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="TPU中的指令并行和数据并行">
 <meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
@@ -252,7 +252,7 @@
                 
               
 
-              <time title="创建时间：2019-08-03 01:56:17 / 修改时间：17:20:36" itemprop="dateCreated datePublished" datetime="2019-08-03T01:56:17+08:00">2019-08-03</time>
+              <time title="创建时间：2019-08-03 01:56:17 / 修改时间：17:47:48" itemprop="dateCreated datePublished" datetime="2019-08-03T01:56:17+08:00">2019-08-03</time>
             </span>
           
             
@@ -452,6 +452,7 @@
 
 <p>以MIPS为例，对于一般的标量处理器和向量处理器而言，执行的指令序列如下所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171640.png" alt></p>
+<p>对于卷积神经网络中的卷积操作而言，计算可以表示为（已忽略bias）</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int i=0;i&lt;M;i++)&#123;</span><br><span class="line">    for(int j=0;j&lt;N;j++)&#123;</span><br><span class="line">        for(int k=0;k&lt;K;k++)&#123;</span><br><span class="line">            for(int c=0;c&lt;C;c++)&#123;</span><br><span class="line">                for(int kw=0;kw&lt;KW;kw++)&#123;</span><br><span class="line">                    for(int kh=0;kh&lt;KH;kh++)&#123;</span><br><span class="line">                        result(i,j,k) += feature(i+kw,j+kh,c)*w(k,kw,kh,c);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
 
 <p>由于KW和KH可能为1（即卷积核的宽度和高度），而weight在计算过程中认为是固定在计算阵列内部的，因此调整循环顺序后有</p>
