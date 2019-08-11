@@ -99,6 +99,7 @@ for(int i=0;i<N;i++)
 
 ![](https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171640.png)
 
+对于卷积神经网络中的卷积操作而言，计算可以表示为（已忽略bias）
 ```
 for(int i=0;i<M;i++){
     for(int j=0;j<N;j++){
