@@ -58,7 +58,7 @@
 </script>
 
   <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
-<meta name="keywords" content="Neural Network,Tensor Processing Unit">
+<meta name="keywords" content="Tensor Processing Unit,Neural Network">
 <meta property="og:type" content="article">
 <meta property="og:title" content="动手写一个简单版的谷歌TPU">
 <meta property="og:url" content="http://cea-wind.github.io/2019/08/02/TPU_c1/index.html">
@@ -326,6 +326,7 @@
 <p>TPU中为了进行数据交互，存在包括PCIE Interface、DDR Interface在内的各类硬件接口；此处并不考虑这些标准硬件接口的设计，各类数据交互均通过AXI接口完成；仅关心TPU内部计算的实现，更准确的来说，Simple TPU计划实现TPU core，即下图红框所示。</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803025608.png" alt></p>
 <p>由于TPU的规模太大，乘法器阵列大小为256×256，这会给调试和综合带来极大的困难，因此此处将其矩阵乘法单元修改为32×32，其余数据位宽也进行相应修改，此类修改包括</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -334,7 +335,8 @@
 <th>SimpleTPU</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>Matrix Multiply Unit</td>
 <td>256×256</td>
 <td>32×32</td>
@@ -349,7 +351,9 @@
 <td>96K×256×8b</td>
 <td>16K×32×8b</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <ul>
 <li>由于Weight FIFO实现上的困难（难以采用C语言描述）, Weight采用1K<em>32</em>8b的BRAM存放，Pingpang使用；</li>
 <li>由于Matrix Multiply Unit和Accumulators之间的高度相关性，SimpleTPU将其合二为一了；</li>
@@ -382,9 +386,9 @@
           
         
         <div class="post-tags">
-            <a href="/tags/Neural-Network/" rel="tag"># Neural Network</a>
-          
             <a href="/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
+          
+            <a href="/tags/Neural-Network/" rel="tag"># Neural Network</a>
           
         </div>
         <div class="post-nav">

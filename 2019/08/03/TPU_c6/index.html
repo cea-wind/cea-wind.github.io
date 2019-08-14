@@ -316,12 +316,12 @@
 <p>这意味着想真正使用之前设计的神经网络加速器——SimpleTPU，还需要软件的配合。即便模型压缩不在考虑范围内，也需要将模型量化为int8精度（SimpleTPU只支持int8乘法），同时利用Compiler生成指令序列。受限于个人能力，由于配套软件的缺失，下面的例子中的量化和指令均由手工生成。也正是由于这一原因，网络结构会尽可能简单，仅以保证本系列文章完整性为目的。</p>
 <h1 id="2-MLP分类实例"><a href="#2-MLP分类实例" class="headerlink" title="2. MLP分类实例"></a>2. MLP分类实例</h1><p>利用MLP对MNIST数据集进行手写数字分类的网络结构定义如下</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">class MLP(nn.Module):</span><br><span class="line">    def __init__(self):</span><br><span class="line">        super(MLP, self).__init__()</span><br><span class="line">        self.hidden = nn.Linear(784,64)</span><br><span class="line">        self.fc = nn.Linear(64,10)</span><br><span class="line"> </span><br><span class="line">    def forward(self, x):</span><br><span class="line">        x = x.view(-1,784)</span><br><span class="line">        x = self.hidden(x)</span><br><span class="line">        x = self.fc(x)</span><br><span class="line">        return F.log_softmax(x, dim=1)</span><br></pre></td></tr></table></figure>
-
 <p>生成指令后将其作为SimpleTPU的输入，并对其进行RTL仿真（testbench已经写好，直接运行即可），仿真结果如下图所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161821.png" alt></p>
 <p>前16张图的分类结果如下图所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161851.png" alt></p>
 <p>根据计算结果，可以分析得到其效率为84%。（去除了13K个用于读取图片和写回结果的时间，实际应用中，这一事件也会被计算时间覆盖）</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -333,7 +333,8 @@
 <th>% of Deployed</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>10</td>
 <td>2 FC</td>
 <td>Relu</td>
@@ -341,7 +342,9 @@
 <td>512</td>
 <td>16%</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <p>作为参考，谷歌TPU中的数值为（尽管Simple TPU效率较高，但由于规模不同，无法直接对比效率；由于SimpleTPU完全按TPU设计，实际性能不可能高于TPU）</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161808.png" alt></p>
 <h2 id="2-1-MLP运行分析"><a href="#2-1-MLP运行分析" class="headerlink" title="2.1 MLP运行分析"></a>2.1 MLP运行分析</h2><p>通过仿真波形，可以更直观的看出SimpleTPU的运行状态。下图中，读取Weight、乘加运算单元和Pooling共同工作可以反应TPU中的指令并行和数据并行中提到的指令并行。(由上倒下的ap_start分别是MXU，POOL，LOAD WEIGHT和INSTR FETCH的工作指示信号，同时拉高代表同时工作)</p>

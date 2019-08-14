@@ -305,12 +305,12 @@
 <p>这意味着想真正使用之前设计的神经网络加速器——SimpleTPU，还需要软件的配合。即便模型压缩不在考虑范围内，也需要将模型量化为int8精度（SimpleTPU只支持int8乘法），同时利用Compiler生成指令序列。受限于个人能力，由于配套软件的缺失，下面的例子中的量化和指令均由手工生成。也正是由于这一原因，网络结构会尽可能简单，仅以保证本系列文章完整性为目的。</p>
 <h1 id="2-MLP分类实例"><a href="#2-MLP分类实例" class="headerlink" title="2. MLP分类实例"></a>2. MLP分类实例</h1><p>利用MLP对MNIST数据集进行手写数字分类的网络结构定义如下</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">class MLP(nn.Module):</span><br><span class="line">    def __init__(self):</span><br><span class="line">        super(MLP, self).__init__()</span><br><span class="line">        self.hidden = nn.Linear(784,64)</span><br><span class="line">        self.fc = nn.Linear(64,10)</span><br><span class="line"> </span><br><span class="line">    def forward(self, x):</span><br><span class="line">        x = x.view(-1,784)</span><br><span class="line">        x = self.hidden(x)</span><br><span class="line">        x = self.fc(x)</span><br><span class="line">        return F.log_softmax(x, dim=1)</span><br></pre></td></tr></table></figure>
-
 <p>生成指令后将其作为SimpleTPU的输入，并对其进行RTL仿真（testbench已经写好，直接运行即可），仿真结果如下图所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161821.png" alt></p>
 <p>前16张图的分类结果如下图所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161851.png" alt></p>
 <p>根据计算结果，可以分析得到其效率为84%。（去除了13K个用于读取图片和写回结果的时间，实际应用中，这一事件也会被计算时间覆盖）</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -322,7 +322,8 @@
 <th>% of Deployed</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>10</td>
 <td>2 FC</td>
 <td>Relu</td>
@@ -330,7 +331,9 @@
 <td>512</td>
 <td>16%</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <p>作为参考，谷歌TPU中的数值为（尽管Simple TPU效率较高，但由于规模不同，无法直接对比效率；由于SimpleTPU完全按TPU设计，实际性能不可能高于TPU）</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803161808.png" alt></p>
 <h2 id="2-1-MLP运行分析"><a href="#2-1-MLP运行分析" class="headerlink" title="2.1 MLP运行分析"></a>2.1 MLP运行分析</h2><p>通过仿真波形，可以更直观的看出SimpleTPU的运行状态。下图中，读取Weight、乘加运算单元和Pooling共同工作可以反应TPU中的指令并行和数据并行中提到的指令并行。(由上倒下的ap_start分别是MXU，POOL，LOAD WEIGHT和INSTR FETCH的工作指示信号，同时拉高代表同时工作)</p>
@@ -465,6 +468,7 @@
 <li>采用向量体系结构进行数据并行</li>
 </ul>
 <p>SimpleTPU依照Google TPU V1的设计思路，可以完成神经网络推理过程中的大部分运算。依据设计，支持的运算包括（理论）</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -472,7 +476,8 @@
 <th>Support</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>Conv3d</td>
 <td>in_channels: Resource Constrained  <br> out_channels: Resource Constrained<br>kerner_size: Support<br>stride: support<br>padding: Support<br>dilation:Support<br>groups: Architecture Constrained<br>bias    :Support</td>
 </tr>
@@ -482,7 +487,7 @@
 </tr>
 <tr>
 <td>Maxpool2d</td>
-<td>kernel_size: Support <br>stride: Support<br>padding: Support</td>
+<td>kernel_size: Support <br>stride: Support<br>padding: Support    </td>
 </tr>
 <tr>
 <td>Avgpool2d</td>
@@ -498,7 +503,7 @@
 </tr>
 <tr>
 <td>Linear</td>
-<td>Resource Constrained</td>
+<td>Resource Constrained </td>
 </tr>
 <tr>
 <td>UpscalingNearest2D</td>
@@ -508,13 +513,14 @@
 <td>UpscalingBilinear2D</td>
 <td>Support (calling Avgpool2d multiple times.)</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <p>其中，Resource Constrained代表该参数的取值范围有限，主要受限于SimpleTPU的存储设计等。由于架构设计上的问题，SimpleTPU对groupconv支持极为有限，在不合适的参数下效率可能远低于普通卷积；类似的，Google TPU也不能很好支持groupconv，并明确告知不制止depthwise conv（极度稀疏化的group conv）。</p>
 <p>BatchNorm2d在推理过程中实际上时进行逐点的乘法和加法，其中加法计算可以融合到下一层或者上一层的卷积计算中进行，乘法计算可以和pooling计算融合。在SimpleTPU设计，每次完成卷积计算后，均要进行一次Pooling计算，即使网络中没有pooling层，SimipleTPU增加了一个1*1，stride=1的pooling层进行等价。</p>
 <p>Upscaling操作通过pooling完成计算。这是因为在SimpleTPU中，reshape操作（支持的）是没有代价的。pooling操作可以完成双线性插值的计算，因此可以完成upscaling中的所有数值的计算。可以理解为通过pooling+reshape完成了upscaling的计算。</p>
 <h1 id="3-SimpleTPU的性能"><a href="#3-SimpleTPU的性能" class="headerlink" title="3. SimpleTPU的性能"></a>3. SimpleTPU的性能</h1><p>Simple TPU设计了一个32×32的int8乘加阵列计算矩阵乘法和卷积，和一个1×32的int32乘法阵列进行池化和归一化的计算。根据Xilinx HLS工具的综合结果，在UltraScale+系列的FPGA器件上，工作频率可达500MHz。因此SimpleTPU的算力约为</p>
-<p>$$32\times 32 \times 500MHz \times 2 = 1 Tops$$</p>
-<p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
+<script type="math/tex; mode=display">32\times 32 \times 500MHz \times 2 = 1 Tops</script><p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
 <p>依据设计，SimpleTPU在适合的任务下会有很高的运行效率，TPU中的指令并行和数据并行中针对这一点又更为具体的描述。从宏观上看，SimpleTPU的各个运行单元可以流水并行的，即</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png" alt></p>
 <p>而针对网络中计算量最大的全连接层和卷积层，针对性设计的乘法整列和向量计算的设计方法可以让其在每个时钟周期都完成有效的乘加计算；这意味着和CPU相比，SimpleTPU可以达到极高的效率。</p>
@@ -636,9 +642,11 @@
 </ul>
 <p>后文会针对这两点做进一步描述，并简单讨论TPU设计中的更多其他的优化方法和方向。</p>
 <h1 id="2-指令并行"><a href="#2-指令并行" class="headerlink" title="2. 指令并行"></a>2. 指令并行</h1><h2 id="2-1-Simple-TPU中的流水线"><a href="#2-1-Simple-TPU中的流水线" class="headerlink" title="2.1 Simple TPU中的流水线"></a>2.1 Simple TPU中的流水线</h2><p>为了提高吞吐率和时钟频率，处理器通常使用流水线设计，经典的五级流水线设计一般如下所示</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
+<th></th>
 <th></th>
 <th>clk0</th>
 <th>clk1</th>
@@ -650,8 +658,22 @@
 <th>clk7</th>
 </tr>
 </thead>
-<tbody><tr>
-<td>instruction0</td>
+<tbody>
+<tr>
+<td> instruction0</td>
+<td>IF</td>
+<td>ID</td>
+<td>EX</td>
+<td>MEM</td>
+<td>WB</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td> instruction1</td>
+<td></td>
 <td>IF</td>
 <td>ID</td>
 <td>EX</td>
@@ -662,7 +684,8 @@
 <td></td>
 </tr>
 <tr>
-<td>instruction1</td>
+<td> instruction2</td>
+<td></td>
 <td></td>
 <td>IF</td>
 <td>ID</td>
@@ -673,7 +696,8 @@
 <td></td>
 </tr>
 <tr>
-<td>instruction2</td>
+<td> instruction3</td>
+<td></td>
 <td></td>
 <td></td>
 <td>IF</td>
@@ -683,23 +707,16 @@
 <td>WB</td>
 <td></td>
 </tr>
-<tr>
-<td>instruction3</td>
-<td></td>
-<td></td>
-<td></td>
-<td>IF</td>
-<td>ID</td>
-<td>EX</td>
-<td>MEM</td>
-<td>WB</td>
-</tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <p>其中，IF指取指(insturction fetch)，ID指指令译码（instruction decode），EX指执行（Execute），MEM指内存读写（Memory Access），WB指写回寄存器(Write back)。采用流水线设计可以提高性能，如果不采用流水线设计，那么instruction1需要在clk5才能开始进行IF，严重影响其性能；如果在同一周期完成IF/ID/EX/MEM/WB的功能，由于逻辑极其复杂，会严重影响工作频率。</p>
 <p>TPU论文中介绍其采用四级流水线设计，Simple TPU中采用了两级流水线，来完成控制过程。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
+<th></th>
 <th></th>
 <th>clk0</th>
 <th>clk1</th>
@@ -711,8 +728,9 @@
 <th>clk7</th>
 </tr>
 </thead>
-<tbody><tr>
-<td>instruction0</td>
+<tbody>
+<tr>
+<td> instruction0</td>
 <td>IF&amp;ID</td>
 <td>EX</td>
 <td>MEM</td>
@@ -723,7 +741,7 @@
 <td></td>
 </tr>
 <tr>
-<td>instruction1</td>
+<td> instruction1</td>
 <td></td>
 <td>IF&amp;ID</td>
 <td>EX</td>
@@ -734,7 +752,7 @@
 <td></td>
 </tr>
 <tr>
-<td>instruction2</td>
+<td> instruction2</td>
 <td></td>
 <td></td>
 <td>IF&amp;ID</td>
@@ -745,7 +763,7 @@
 <td></td>
 </tr>
 <tr>
-<td>instruction3</td>
+<td> instruction3</td>
 <td></td>
 <td></td>
 <td></td>
@@ -755,7 +773,9 @@
 <td>WB</td>
 <td></td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <p>也认为Simple TPU内部有四级流水线，这是因为在实际执行过程中，包括了读取寄存器，执行和写回三个部分，这三个部分是流水设计的。</p>
 <h2 id="2-2-超长指令字（VLIW）"><a href="#2-2-超长指令字（VLIW）" class="headerlink" title="2.2 超长指令字（VLIW）"></a>2.2 超长指令字（VLIW）</h2><p>如前文所述，Simple TPU中有两个基本的计算单元——矩阵乘法阵列和池化计算单元。除此之外，还有一些没有显式描述的执行单元，譬如载入和存储。在这一前提下，即使TPU的指令流水线做得再好，每条指令占有的周期数也不可能小于1。如果其他执行单元的执行周期数很小，此时总会有一些执行单元处于闲置状态，处理器的瓶颈会出现在指令上。为了解决这一问题，很直接的想法时每个周期发射多条指令（另一个方法时让执行单元的执行时间变长，Simple TPU通过向量体系结构设计也有这一处理）。</p>
 <p>由于TPU的专用性，以及计算过程中不存在跳转和控制的原因，采用VLIW设计多发射处理器似乎是一个很适合的方式。在这一设计下，指令发射结构时固定的，而且所有的冒险可以由编译器事先检测并处理，这很大程度可以降低硬件实现的复杂度。在Simple TPU中借鉴了VLIW的思想进行设计，如下所示(示意图)</p>
@@ -777,20 +797,12 @@
 <li>MIMD，多指令流多数据流，每个处理器用各种的指令对各自的数据进行操作，可以用在任务级并行上，也可用于数据级并行，比SIMD更灵活</li>
 </ul>
 <p>由于TPU应用在规则的矩阵/卷积计算中，在单个处理器内部的设计上，SIMD是数据并行的最优选择。SIMD有多种实现方式，根据给出的描述（MatirxMultiply/Convolve指令接受B<em>256输入，输出B</em>256个结果），TPU中应该采用了类似向量体系结构的设计方法。</p>
-<h2 id="3-2-向量体系结构"><a href="#3-2-向量体系结构" class="headerlink" title="3.2 向量体系结构"></a>3.2 向量体系结构</h2><p>如基本单元-矩阵乘法阵列所述，计算单元完成矩阵乘法计算，即向量计算。以《计算机体系结构 : 量化研究方法》给出的例子为例，如需计算</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">for(int i=0;i&lt;N;i++)</span><br><span class="line">    y[i] += a*x[i];</span><br></pre></td></tr></table></figure>
-
+<h2 id="3-2-向量体系结构"><a href="#3-2-向量体系结构" class="headerlink" title="3.2 向量体系结构"></a>3.2 向量体系结构</h2><p>如基本单元-矩阵乘法阵列所述，计算单元完成矩阵乘法计算，即向量计算。以《计算机体系结构 : 量化研究方法》给出的例子为例，如需计算<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">for(int i=0;i&lt;N;i++)</span><br><span class="line">    y[i] += a*x[i];</span><br></pre></td></tr></table></figure></p>
 <p>以MIPS为例，对于一般的标量处理器和向量处理器而言，执行的指令序列如下所示</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171640.png" alt></p>
-<p>对于卷积神经网络中的卷积操作而言，计算可以表示为（已忽略bias）</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int i=0;i&lt;M;i++)&#123;</span><br><span class="line">    for(int j=0;j&lt;N;j++)&#123;</span><br><span class="line">        for(int k=0;k&lt;K;k++)&#123;</span><br><span class="line">            for(int c=0;c&lt;C;c++)&#123;</span><br><span class="line">                for(int kw=0;kw&lt;KW;kw++)&#123;</span><br><span class="line">                    for(int kh=0;kh&lt;KH;kh++)&#123;</span><br><span class="line">                        result(i,j,k) += feature(i+kw,j+kh,c)*w(k,kw,kh,c);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>由于KW和KH可能为1（即卷积核的宽度和高度），而weight在计算过程中认为是固定在计算阵列内部的，因此调整循环顺序后有</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int kw=0;kw&lt;KW;kw++)&#123;</span><br><span class="line">    for(int kh=0;kh&lt;KH;kh++)&#123;</span><br><span class="line">        for(int k=0;k&lt;K;k++)&#123;</span><br><span class="line">            for(int i=0;i&lt;M;i++)&#123;</span><br><span class="line">                for(int j=0;j&lt;N;j++)&#123;</span><br><span class="line">                    for(int c=0;c&lt;C;c++)&#123;</span><br><span class="line">                        result(i,j,k) += feature(i+kw,j+kh,c)*w(k,kw,kh,c);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>其中第一二层循环通过指令进行控制，第三层循环在计算阵列中以256并行度进行计算，指令调度；第4-6层循环按向量处理器的设计思路进行设计，通过一条指令完成三层循环的计算。为了完成循环的计算，需要设置三个向量长度寄存器，另外，由于向量在SRAM中的地址并不连续，还需要设定三个不同的步幅寄存器。参考 基本单元-矩阵乘法阵列的代码，具体为</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">short ubuf_raddr_step1;</span><br><span class="line">short ubuf_raddr_step2;</span><br><span class="line">short ubuf_raddr_step3;</span><br><span class="line">short ubuf_raddr_end1;</span><br><span class="line">short ubuf_raddr_end2;</span><br><span class="line">short ubuf_raddr_end3</span><br></pre></td></tr></table></figure>
-
+<p>对于卷积神经网络中的卷积操作而言，计算可以表示为（已忽略bias）<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int i=0;i&lt;M;i++)&#123;</span><br><span class="line">    for(int j=0;j&lt;N;j++)&#123;</span><br><span class="line">        for(int k=0;k&lt;K;k++)&#123;</span><br><span class="line">            for(int c=0;c&lt;C;c++)&#123;</span><br><span class="line">                for(int kw=0;kw&lt;KW;kw++)&#123;</span><br><span class="line">                    for(int kh=0;kh&lt;KH;kh++)&#123;</span><br><span class="line">                        result(i,j,k) += feature(i+kw,j+kh,c)*w(k,kw,kh,c);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>由于KW和KH可能为1（即卷积核的宽度和高度），而weight在计算过程中认为是固定在计算阵列内部的，因此调整循环顺序后有<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int kw=0;kw&lt;KW;kw++)&#123;</span><br><span class="line">    for(int kh=0;kh&lt;KH;kh++)&#123;</span><br><span class="line">        for(int k=0;k&lt;K;k++)&#123;</span><br><span class="line">            for(int i=0;i&lt;M;i++)&#123;</span><br><span class="line">                for(int j=0;j&lt;N;j++)&#123;</span><br><span class="line">                    for(int c=0;c&lt;C;c++)&#123;</span><br><span class="line">                        result(i,j,k) += feature(i+kw,j+kh,c)*w(k,kw,kh,c);</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>其中第一二层循环通过指令进行控制，第三层循环在计算阵列中以256并行度进行计算，指令调度；第4-6层循环按向量处理器的设计思路进行设计，通过一条指令完成三层循环的计算。为了完成循环的计算，需要设置三个向量长度寄存器，另外，由于向量在SRAM中的地址并不连续，还需要设定三个不同的步幅寄存器。参考 基本单元-矩阵乘法阵列的代码，具体为<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">short ubuf_raddr_step1;</span><br><span class="line">short ubuf_raddr_step2;</span><br><span class="line">short ubuf_raddr_step3;</span><br><span class="line">short ubuf_raddr_end1;</span><br><span class="line">short ubuf_raddr_end2;</span><br><span class="line">short ubuf_raddr_end3</span><br></pre></td></tr></table></figure></p>
 <p> 采用这样的设计，SimpleTPU中一条指令可以完成大量数据的计算，提高了数据并行度。这些数据会并行的进入到计算阵列中完成计算（可以认为是多条车道）。由于SimpleTPU中数据的读取延时是固定的（指从SRAM），因此向量化的设计较一般处理器还更为简单。</p>
 <p>根据谷歌论文中的描述，TPU中有repeat fileld，但MatrixMultiply/Convolve指令长度有限，因此可能只有一组或两组向量长度寄存器和步幅寄存器，但设计思路应该类似。</p>
 <h1 id="4-其他"><a href="#4-其他" class="headerlink" title="4. 其他"></a>4. 其他</h1><p>从谷歌论文中的参数来看，TPU具有极高单位功耗下性能。这一部分来自于其内核设计，正如之前的文章中所描述的</p>
@@ -1006,8 +1018,22 @@
 </blockquote>
 <p>本文将对TPU中的矩阵计算单元进行分析，并给出了SimpleTPU中32×32的脉动阵列的实现方式和采用该阵列进行卷积计算的方法，以及一个卷积的设计实例，验证了其正确性。代码地址<a href="https://github.com/cea-wind/SimpleTPU/tree/master/lab1" target="_blank" rel="noopener">https://github.com/cea-wind/SimpleTPU/tree/master/lab1</a></p>
 <h1 id="1-脉动阵列和矩阵计算"><a href="#1-脉动阵列和矩阵计算" class="headerlink" title="1. 脉动阵列和矩阵计算"></a>1. 脉动阵列和矩阵计算</h1><p> 脉动阵列是一种复用输入数据的设计，对于TPU中的二维脉动阵列，很多文章中构造了脉动阵列的寄存器模型，导致阅读较为困难，而实际上TPU中的二维脉动阵列设计思路十分直接。譬如当使用4×4的脉动阵列计算4×4的矩阵乘法时，有</p>
-<p>$$ A\times B = \begin{bmatrix}<br>1 &amp; 1 &amp; 1 &amp; 1\<br>2 &amp; 2 &amp; 2 &amp; 2\<br>3 &amp; 3 &amp; 3 &amp; 3\<br>4 &amp; 4 &amp; 4 &amp; 4<br>\end{bmatrix} \times \begin{bmatrix}<br> 1 &amp; 5 &amp; 9  &amp;13 \<br> 2 &amp; 6 &amp; 10 &amp;14 \<br> 3 &amp; 7 &amp; 11 &amp;15 \<br> 4 &amp; 8 &amp; 12 &amp;16<br>\end{bmatrix} = \begin{bmatrix}<br> 10&amp; 26 &amp; 42  &amp;58 \<br> 20&amp; 52 &amp; 84  &amp;116 \<br> 30&amp; 78 &amp; 126 &amp;174 \<br> 40&amp; 104&amp; 168 &amp;232<br>\end{bmatrix}$$</p>
-<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171231.png" alt></p>
+<script type="math/tex; mode=display">A\times B = \begin{bmatrix}
+1 & 1 & 1 & 1\\ 
+2 & 2 & 2 & 2\\ 
+3 & 3 & 3 & 3\\ 
+4 & 4 & 4 & 4
+\end{bmatrix} \times \begin{bmatrix}
+ 1 & 5 & 9  &13 \\ 
+ 2 & 6 & 10 &14 \\ 
+ 3 & 7 & 11 &15 \\ 
+ 4 & 8 & 12 &16 
+\end{bmatrix} = \begin{bmatrix}
+ 10& 26 & 42  &58 \\ 
+ 20& 52 & 84  &116 \\ 
+ 30& 78 & 126 &174 \\ 
+ 40& 104& 168 &232 
+\end{bmatrix}</script><p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171231.png" alt></p>
 <p>如上图所示，右侧是一个乘加单元的内部结构，其内部有一个寄存器，在TPU内对应存储Weight，此处存储矩阵B。左图是一个4×4的乘加阵列，假设矩阵B已经被加载到乘加阵列内部；显然，乘加阵列中每一列计算四个数的乘法并将其加在一起，即得到矩阵乘法的一个输出结果。依次输入矩阵A的四行，可以得到矩阵乘法的结果。</p>
 <p>由于硬件上的限制，需要对传播路径上添加寄存器，而添加寄存器相对于在第i个时刻处理的内容变成了i+1时刻处理；这一过程可以进行计算结果上的等效。如下图所示，采用z-1代表添加一个延时为1的寄存器，如果在纵向的psum传递路径上添加寄存器，为了保证结果正确，需要在横向的输入端也添加一个寄存器（即原本在i进行乘加计算的两个数均在i+1时刻进行计算）。给纵向每个psum路径添加寄存器后，输入端处理如右图所示。（下图仅考虑第一列的处理）</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171259.png" alt></p>
@@ -1021,12 +1047,10 @@
 <li>Feature向右侧移动</li>
 </ol>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">for(int j=0;j&lt;MXU_ROWNUM;j++)&#123;</span><br><span class="line">    for(int k=MXU_ROWNUM+MXU_COLNUM-2;k&gt;=0;k--)&#123;</span><br><span class="line">        if(k&gt;0)</span><br><span class="line">            featreg[j][k] = featreg[j][k-1];</span><br><span class="line">        else</span><br><span class="line">            if(i&lt;mxuparam.ubuf_raddr_num)</span><br><span class="line">                featreg[j][k] = ubuf[ubuf_raddr][j];</span><br><span class="line">            else</span><br><span class="line">                featreg[j][k] = 0;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<ol start="2">
+<ol>
 <li>乘法计算以及向下方移动的psum</li>
 </ol>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">for(int j=MXU_ROWNUM-1;j&gt;=0;j--)&#123;</span><br><span class="line">    for(int k=0;k&lt;MXU_COLNUM;k++)&#123;</span><br><span class="line">        ap_int&lt;32&gt; biasreg;</span><br><span class="line">        biasreg(31,24)=weightreg[MXU_ROWNUM+0][k];</span><br><span class="line">        biasreg(23,16)=weightreg[MXU_ROWNUM+1][k];</span><br><span class="line">        biasreg(15, 8)=weightreg[MXU_ROWNUM+2][k];</span><br><span class="line">        biasreg( 7, 0)=weightreg[MXU_ROWNUM+3][k];</span><br><span class="line">        if(j==0)</span><br><span class="line">            psumreg[j][k] = featreg[j][k+j]*weightreg[j][k] + biasreg;</span><br><span class="line">        else</span><br><span class="line">            psumreg[j][k] = featreg[j][k+j]*weightreg[j][k] + psumreg[j-1][k];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
 <p>完成代码编写后可进行行为级仿真，可以看出整个计算阵列的时延关系</p>
 <ol>
 <li>对于同一列而言，下一行的输入比上一行晚一个周期<br><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803160407.png" alt></li>
@@ -1037,7 +1061,6 @@
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803171137.png" alt></p>
 <p>下面的MATLAB代码阐明了这种计算三维卷积的方式，9个结果错位相加的MATLAB代码如下所示</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">output = out1;</span><br><span class="line">output(2:end,2:end,:) = output(2:end,2:end,:) + out2(1:end-1,1:end-1,:);</span><br><span class="line">output(2:end,:,:) = output(2:end,:,:) + out3(1:end-1,:,:);</span><br><span class="line">output(2:end,1:end-1,:) = output(2:end,1:end-1,:) + out4(1:end-1,2:end,:);</span><br><span class="line">output(:,2:end,:) = output(:,2:end,:) + out5(:,1:end-1,:);</span><br><span class="line">output(:,1:end-1,:) = output(:,1:end-1,:) + out6(:,2:end,:);</span><br><span class="line">output(1:end-1,2:end,:) = output(1:end-1,2:end,:) + out7(2:end,1:end-1,:);</span><br><span class="line">output(1:end-1,:,:) = output(1:end-1,:,:) + out8(2:end,:,:);</span><br><span class="line">output(1:end-1,1:end-1,:) = output(1:end-1,1:end-1,:) + out9(2:end,2:end,:);</span><br></pre></td></tr></table></figure>
-
 <p>而在实际的HLS代码以及硬件实现上，部分未使用的值并未计算，因此实际计算的index和上述示意图并不相同，具体可参考testbench中的配置方法。</p>
 <h1 id="4-其他"><a href="#4-其他" class="headerlink" title="4. 其他"></a>4. 其他</h1><p>GPU的volta架构中引入了Tensor Core来计算4×4的矩阵乘法，由于4×4的阵列规模较小，其内部可能并没有寄存器，设计可能类似第一节图1所示。由于其平均一个周期就能完成4×4矩阵计算，猜测采用第一节中阵列进行堆叠，如下图所示。</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803160349.png" alt></p>
@@ -1179,6 +1202,7 @@
 <p>TPU中为了进行数据交互，存在包括PCIE Interface、DDR Interface在内的各类硬件接口；此处并不考虑这些标准硬件接口的设计，各类数据交互均通过AXI接口完成；仅关心TPU内部计算的实现，更准确的来说，Simple TPU计划实现TPU core，即下图红框所示。</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803025608.png" alt></p>
 <p>由于TPU的规模太大，乘法器阵列大小为256×256，这会给调试和综合带来极大的困难，因此此处将其矩阵乘法单元修改为32×32，其余数据位宽也进行相应修改，此类修改包括</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -1187,7 +1211,8 @@
 <th>SimpleTPU</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>Matrix Multiply Unit</td>
 <td>256×256</td>
 <td>32×32</td>
@@ -1202,7 +1227,9 @@
 <td>96K×256×8b</td>
 <td>16K×32×8b</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
+</div>
 <ul>
 <li>由于Weight FIFO实现上的困难（难以采用C语言描述）, Weight采用1K<em>32</em>8b的BRAM存放，Pingpang使用；</li>
 <li>由于Matrix Multiply Unit和Accumulators之间的高度相关性，SimpleTPU将其合二为一了；</li>
