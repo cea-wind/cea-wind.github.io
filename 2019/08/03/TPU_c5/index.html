@@ -310,7 +310,6 @@
 <li>采用向量体系结构进行数据并行</li>
 </ul>
 <p>SimpleTPU依照Google TPU V1的设计思路，可以完成神经网络推理过程中的大部分运算。依据设计，支持的运算包括（理论）</p>
-<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -318,8 +317,7 @@
 <th>Support</th>
 </tr>
 </thead>
-<tbody>
-<tr>
+<tbody><tr>
 <td>Conv3d</td>
 <td>in_channels: Resource Constrained  <br> out_channels: Resource Constrained<br>kerner_size: Support<br>stride: support<br>padding: Support<br>dilation:Support<br>groups: Architecture Constrained<br>bias    :Support</td>
 </tr>
@@ -329,7 +327,7 @@
 </tr>
 <tr>
 <td>Maxpool2d</td>
-<td>kernel_size: Support <br>stride: Support<br>padding: Support    </td>
+<td>kernel_size: Support <br>stride: Support<br>padding: Support</td>
 </tr>
 <tr>
 <td>Avgpool2d</td>
@@ -345,7 +343,7 @@
 </tr>
 <tr>
 <td>Linear</td>
-<td>Resource Constrained </td>
+<td>Resource Constrained</td>
 </tr>
 <tr>
 <td>UpscalingNearest2D</td>
@@ -355,14 +353,13 @@
 <td>UpscalingBilinear2D</td>
 <td>Support (calling Avgpool2d multiple times.)</td>
 </tr>
-</tbody>
-</table>
-</div>
+</tbody></table>
 <p>其中，Resource Constrained代表该参数的取值范围有限，主要受限于SimpleTPU的存储设计等。由于架构设计上的问题，SimpleTPU对groupconv支持极为有限，在不合适的参数下效率可能远低于普通卷积；类似的，Google TPU也不能很好支持groupconv，并明确告知不制止depthwise conv（极度稀疏化的group conv）。</p>
 <p>BatchNorm2d在推理过程中实际上时进行逐点的乘法和加法，其中加法计算可以融合到下一层或者上一层的卷积计算中进行，乘法计算可以和pooling计算融合。在SimpleTPU设计，每次完成卷积计算后，均要进行一次Pooling计算，即使网络中没有pooling层，SimipleTPU增加了一个1*1，stride=1的pooling层进行等价。</p>
 <p>Upscaling操作通过pooling完成计算。这是因为在SimpleTPU中，reshape操作（支持的）是没有代价的。pooling操作可以完成双线性插值的计算，因此可以完成upscaling中的所有数值的计算。可以理解为通过pooling+reshape完成了upscaling的计算。</p>
 <h1 id="3-SimpleTPU的性能"><a href="#3-SimpleTPU的性能" class="headerlink" title="3. SimpleTPU的性能"></a>3. SimpleTPU的性能</h1><p>Simple TPU设计了一个32×32的int8乘加阵列计算矩阵乘法和卷积，和一个1×32的int32乘法阵列进行池化和归一化的计算。根据Xilinx HLS工具的综合结果，在UltraScale+系列的FPGA器件上，工作频率可达500MHz。因此SimpleTPU的算力约为</p>
-<script type="math/tex; mode=display">32\times 32 \times 500MHz \times 2 = 1 Tops</script><p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
+<p>$$32\times 32 \times 500MHz \times 2 = 1 Tops$$</p>
+<p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
 <p>依据设计，SimpleTPU在适合的任务下会有很高的运行效率，TPU中的指令并行和数据并行中针对这一点又更为具体的描述。从宏观上看，SimpleTPU的各个运行单元可以流水并行的，即</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png" alt></p>
 <p>而针对网络中计算量最大的全连接层和卷积层，针对性设计的乘法整列和向量计算的设计方法可以让其在每个时钟周期都完成有效的乘加计算；这意味着和CPU相比，SimpleTPU可以达到极高的效率。</p>
