@@ -138,7 +138,7 @@ $$
 
 一维的脉动阵列FIR滤波器的一种实现方式，其实现结构如下图（Ref. Wikipedia），采用这种结构，每输入一个$x[n]$，就能计算得到一个$y[n]$。这种特殊的数据复用是根据卷积计算的特殊性质得到的。
 
-![](https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/imgcec84da2-fffe-4bd1-9b74-2b93ce903419.jpg)
+![](https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/imgfir_filter.jpg)
 
 在卷积神经网络中，卷积层的计算一般也存在这种数据复用关系（除kernelsize <= stide情况外）。如果能用好这一特性，不再将卷积转化为矩阵乘法，直接计算卷积，能获得更高的性能。为了达到这一目标，和分析矩阵乘法类似，对卷积的六层循环进行分析
 ```
@@ -239,8 +239,8 @@ Eyeriss利用了convolution resue，同时也可以利用其他resue的手段。
 一维卷积的计算复杂度为$O(n^2)$，由于时域卷积等于频域相乘，对于离散信号而言，可以通过快速傅里叶变换（Fast Fourier Transform，FFT）及其逆变换将信号在时域和频域之间变换。而FFT的计算复杂度为$O(nlogn)$，当$n$取值较大时，其计算复杂度会远低于直接计算一维卷积。
 
 类似的，可以考虑在其他域进行二维/三维卷积的计算；针对卷积神经网络中的加速，有
-- FFT based Method ((Fast training of convolutional networks through FFTs)[https://arxiv.org/abs/1312.5851])
-- Winograd Method ((Fast Algorithms for Convolutional Neural Networks)[https://arxiv.org/abs/1509.09308])
+- FFT based Method ([Fast training of convolutional networks through FFTs](https://arxiv.org/abs/1312.5851))
+- Winograd Method ([Fast Algorithms for Convolutional Neural Networks](https://arxiv.org/abs/1509.09308))
 
 但若想取得一定的加速比，这些方法对卷积核的大小和步长均有要求；这一类方法均难以适应卷积核日益小型化的发展趋势。
 
