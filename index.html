@@ -258,7 +258,7 @@
                 
                   <span class="post-meta-item-text">更新于</span>
                 
-                <time title="修改时间：2019-08-28 21:30:28" itemprop="dateModified" datetime="2019-08-28T21:30:28+08:00">2019-08-28</time>
+                <time title="修改时间：2019-08-31 01:06:26" itemprop="dateModified" datetime="2019-08-31T01:06:26+08:00">2019-08-31</time>
               </span>
             
           
@@ -382,22 +382,8 @@
 <p>下图也给出了一个具体的例子(Ref. <a href="https://www.zhihu.com/question/28385679/answer/41121948" target="_blank" rel="noopener">在 Caffe 中如何计算卷积？</a>，原始链接<a href="https://hal.inria.fr/file/index/docid/112631/filename/p1038112283956.pdf" target="_blank" rel="noopener">High Performance Convolutional Neural Networks for<br>Document Processing</a>)</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190825233315.png" alt></p>
 <p>此时，卷积计算等价为矩阵乘法计算；而卷积计算中的数据复用关系等价为了矩阵计算中的数据复用关系。矩阵-矩阵乘的复杂度如下所示</p>
-<table>
-<thead>
-<tr>
-<th>Ex.</th>
-<th>Mem Refs</th>
-<th>Ops</th>
-<th>Ops/Memory</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Matrix-Matrix Mult</td>
-<td>$4n^2$</td>
-<td>$2n^3$</td>
-<td>$n/2$</td>
-</tr>
-</tbody></table>
+<p>Ex. | Mem Refs | Ops | Ops/Memory</p>
+<p>-| - | - | -<br>Matrix-Matrix Mult | $4n^2$ | $2n^3$ | $n/2$</p>
 <p>现有的处理器架构从存储和计算之间的关系上来看都是类似的，处理器计算性能的上限可以通过计算单元及其运行频率确定。为了高性能的完成矩阵计算，即使得性能达到Roofline模型中峰值，需要对矩阵计算的三层循环进行优化。在进行分析之前，需要明确两点固有的特性</p>
 <ul>
 <li>处理器的存储是分层设计的，越靠近计算的单元，带宽越大，容量越小</li>
@@ -574,30 +560,7 @@
 <li>不同计算单元之间负载可能不均衡，导致计算出现瓶颈</li>
 <li>不同计算单元之间的数据传输，调度会变得复杂</li>
 </ul>
-<p>当然，这种设计思想并不意味一个加速Core只能加速很受限的计算类型，依旧可以对单个的加速Core进行兼容设计，本节的讨论和4.1并不完全冲突。譬如依旧有一些方法可以让一个三维的MAC阵列（类似Cube Core）同时支持GEMM和GEMV操作。考虑卷积神经网络中FC Layer中的计算</p>
-<p>$$<br>A_{M\times N}B_{N\times 1} = C_{N\times 1}<br>$$</p>
-<p>以$16\times 16\times 16$的MAC阵列为例，需要能计算$A_{64\times 16}B_{16\times 1} = C_{64\times 1}$。针对这一目标，有以下问题和解决方案</p>
-<table>
-<thead>
-<tr>
-<th>问题</th>
-<th>解决方案</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>计算过程中$A$中的元素广播给16个不同的MAC，具有16的复用关系</td>
-<td>给MAC添加寄存器，不改变带宽情况下16个周期完成A输入</td>
-</tr>
-<tr>
-<td>由于输入A需要16个周期，且A上没有数据复用关系，效率只有1/16</td>
-<td>融合卷积神经网络中其他层的计算，利用其他层计算的高数据复用关系和FC依次进行计算</td>
-</tr>
-<tr>
-<td>其他层计算中A需要寄存16个周期</td>
-<td>给MAC添加两个以上寄存器，乒乓操作</td>
-</tr>
-</tbody></table>
-<p>采用这一设计方案，原本只能计算矩阵-矩阵乘法的三维MAC阵列也可以计算矩阵-向量乘法了。（需要和高数据复用关系的Layer进行融合计算，否在计算瓶颈依旧会出现在带宽上）</p>
+<p>当然，这种设计思想并不意味一个加速Core只能加速很受限的计算类型，依旧可以对单个的加速Core进行兼容设计，本节的讨论和4.1并不完全冲突。譬如依旧有一些简单方法可以让一个三维的MAC阵列（类似Cube Core）同时支持GEMM和GEMV操作，但依旧会有一些限制，由于数据复用的不同，这两类运算始终落在Roofline模型的不同位置。</p>
 <p>但不管从哪个角度去解决面临的新的挑战，暂时都没有看到一个完美的解决方案。或许我们并不需要一个真正完美的解决方案，能解决一部分问题，创造价值就已经足够了。这里引用Cloud TPU（TPU V2/3）的一些说明</p>
 <blockquote>
 <p>Cloud TPU适合以下工作负载</p>
