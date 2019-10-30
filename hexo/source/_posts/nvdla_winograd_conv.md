@@ -1,4 +1,4 @@
-title: NVDLA中Winograd卷积的硬件实现
+title: NVDLA中Winograd卷积的设计
 date: 2019-10-28 22:30:00
 tags: 
   - AI CHip
@@ -135,7 +135,7 @@ for k = 1 : Co/16
 ```
 
 其中，Atomic Operation决定了NVDLA乘法阵列的设计。根据设计可以看出，NVDLA有16份完全一致的乘法阵列用于计算16个不同Kernel的乘法；而每个乘法阵列中有64个乘法和一棵64输入的加法树。
-计算顺序还一定程度确定了NVDLA的Buffer设计和数据路径设计。在计算直接卷积时，每周期需要128Byte的Feature/Pixel数据，实际上时规则的64Channel的数据；因此在存储时只需要每个Bank上存储64Channel数据，使用时通过MUX选出指定Bank数据即可。在进行结果写回时，每周期需要写回16个Feature/Pixel数据。由于Winograd卷积使用的Weight可以提前算好，对比直接卷积和Winograd卷积时可以忽略Weight路径。
+计算顺序还一定程度确定了NVDLA的Buffer设计和数据路径设计。在计算直接卷积时，每周期需要128Byte的Feature/Pixel数据，实际上时规则的64Channel的数据；因此在存储时只需要每个Bank上存储64Channel数据，使用时通过MUX选出指定Bank数据即可。在进行结果写回时，每周期需要写回16个Feature数据。由于Winograd卷积使用的Weight可以提前算好，对比直接卷积和Winograd卷积时可以忽略Weight路径。
 
 
 # 3. NVDLA中的Winograd卷积
@@ -175,14 +175,42 @@ s3_wg[1][1] = s2_wg[1][1] - s2_wg[1][1] - s2_wg[1][2];
 - 加法的第五级中增加了2棵6-2的Wallace Tree Compressor
 - 增加了一些MUX以direct conv和winograd conv
 
-其次考虑数据路径，包括读取的数据路径和写回的数据路径。对于读取而言，还需要完成$V = C^TdC $的计算；根据文档描述，这一计算过程是在PRA（Pre-addition）中完成的。
+其次考虑数据路径，包括读取的数据路径和写回的数据路径。对于读取而言，除了需要针对Winograd专门设计取址逻辑和数据选择逻辑，还需要完成$V = C^TdC $的计算；根据文档描述，这一计算过程是在PRA（Pre-addition）中完成的。从代码上看（参见NV_NVDLA_CSC_dl.v）
+- 针对Winograd的地址生成增加的控制逻辑可以忽略
+- 针对Winograd的数据选择增加数千的寄存器
+- PRA采用MENTOR的HLS综合工具实现，共实现了4份，和MAC阵列（1024乘加）对比，此处的计算资源较少
 
+对于写回路径而言，为了完成卷积计算，在乘加后增加了累加器和SRAM，其设计如下图所示(ref. http://nvdla.org/_images/ias_image21_cacc.png)
 
+![](http://nvdla.org/_images/ias_image21_cacc.png)
 
+和Direct Conv一次输出16个结果相比，Winograd Conv输出的结果为64。这意味着为了支持Winograd Conv，需要额外增加48组高位宽的累加器。同时，SRAM的大小也需要设置为原先的四倍。
 
 # 4. 相关讨论
-NVDLA为了同时支持Direct Conv和Winograd Conv显然付出了一些代价。定性的分析来看，主要在于写回的数据路径上，包括增加的累加器数目和Buffer数目；读取数据路径上也多了一些选择和运算（但运算是不可避免的）；相比之下，乘加阵列上增加的逻辑反而较小。在NVDLA的框架下，可能可以优化的地方包括将Direct Conv的输出也改成2x2的大小，这样写回的数据路径上Direct Conv和Winograd Conv就没有差别了。
+NVDLA为了同时支持Direct Conv和Winograd Conv显然付出了一些代价。定性的分析来看，包括
 
-# 参考
+- 4组PRA，每组PRA中约有8次加法
+- 16棵加法树，每棵增加了约8次加法
+- 48组高位宽加法
+- 增加了约25KB的Accumulator SRAM
+
+而作为对比，一些典型数据包括
+
+- MAC阵列中有1024次乘法和约1024次加法
+- 用于存放Feature/Pixel/Weight的Buffer大小为512KB
+
+显然，为了支持Winograd Conv增加的资源并不会太多。当然，虽然读取路径和计算阵列的设计受Winograd Conv的影响不大；但是对于写回路径而言，数据位宽发生了变化，一定程度影响了整体的架构设计。可能可以优化的地方包括将Direct Conv的输出也改成2x2的大小，这样写回的数据路径上Direct Conv和Winograd Conv就没有差别了。
+
+NVDLA是一个相对专用的加速器，从相关文档中也可以看出，NVDLA专门针对计算中的各种特性/数据排列进行了硬件上的处理。而现有的很多加速器，为了兼顾不同网络的计算效率，往往更为灵活。在这种情况下，Winograd Conv应该作为设计的可选项，这是因为
+
+- 计算3x3卷积有2.25x的理论提升
+- Winograd Conv的乘法依旧是矩阵计算
+- Winograd Conv的数据路径和直接卷积没有必然的冲突
+- Winograd Conv的加法可以直接在数据路径上完成，甚至不影响其他设计
+- 如果加速器设计粒度足够细，甚至可以从软件调度上直接支持Winograd Conv
+
+完全不考虑Winograd Conv的理由只可能是未来算法发展趋势下，3x3的普通卷积计算量占比会大大下降。
+
+# 5. 参考
 1. [NVDLA Documentation](http://nvdla.org/contents.html)
 1. [NVDLA Soruce Code](https://github.com/nvdla/hw)
