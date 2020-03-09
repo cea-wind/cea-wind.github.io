@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html class="theme-next pisces use-motion" lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="generator" content="Hexo 3.9.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.3.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.3.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.3.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.3.0" color="#222">
+
+<link rel="stylesheet" href="/css/main.css?v=7.3.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Pisces',
+    version: '7.3.0',
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    search: {
+      root: '/',
+      path: ''
+    },
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: '复制',
+      copy_success: '复制成功',
+      copy_failure: '复制失败'
+    }
+  };
+</script>
+
+  <meta name="description" content="在AI芯片：高性能卷积计算中的数据复用曾提到，基于变换域的卷积计算——譬如Winograd卷积——并不能适应算法上对卷积计算多变的需求。但Winograd卷积依旧出现在刚刚公开的ARM Ethos-N57和Ethos-N37 NPUs的支持特性中，本文将利用Nvidia开源的NVIDIA Deep Learning Accelerator (NVDLA)为例，分析在硬件中支持Winograd卷积">
+<meta name="keywords" content="Architecture,AI CHip,Winograd Convolution">
+<meta property="og:type" content="article">
+<meta property="og:title" content="NVDLA中Winograd卷积的设计">
+<meta property="og:url" content="http://cea-wind.github.io/2019/10/28/nvdla_winograd_conv/index.html">
+<meta property="og:site_name" content="SEAWIND">
+<meta property="og:description" content="在AI芯片：高性能卷积计算中的数据复用曾提到，基于变换域的卷积计算——譬如Winograd卷积——并不能适应算法上对卷积计算多变的需求。但Winograd卷积依旧出现在刚刚公开的ARM Ethos-N57和Ethos-N37 NPUs的支持特性中，本文将利用Nvidia开源的NVIDIA Deep Learning Accelerator (NVDLA)为例，分析在硬件中支持Winograd卷积">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://nvdla.org/_images/ias_image21_cacc.png">
+<meta property="og:updated_time" content="2020-03-09T16:32:40.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="NVDLA中Winograd卷积的设计">
+<meta name="twitter:description" content="在AI芯片：高性能卷积计算中的数据复用曾提到，基于变换域的卷积计算——譬如Winograd卷积——并不能适应算法上对卷积计算多变的需求。但Winograd卷积依旧出现在刚刚公开的ARM Ethos-N57和Ethos-N37 NPUs的支持特性中，本文将利用Nvidia开源的NVIDIA Deep Learning Accelerator (NVDLA)为例，分析在硬件中支持Winograd卷积">
+<meta name="twitter:image" content="http://nvdla.org/_images/ias_image21_cacc.png">
+  <link rel="canonical" href="http://cea-wind.github.io/2019/10/28/nvdla_winograd_conv/">
+
+
+<script id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>NVDLA中Winograd卷积的设计 | SEAWIND</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .motion-element,
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-title { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta">
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">SEAWIND</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+    <ul id="menu" class="menu">
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+      
+    
+
+    <a href="/tags/" rel="section"><i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+      
+    
+
+    <a href="/categories/" rel="section"><i class="menu-item-icon fa fa-fw fa-th"></i> <br>分类</a>
+
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+
+  </li>
+    </ul>
+</nav>
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+            
+
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/10/28/nvdla_winograd_conv/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="SEAWIND">
+    </span>
+      <header class="post-header">
+
+        
+          <h2 class="post-title" itemprop="name headline">NVDLA中Winograd卷积的设计
+
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-10-28 22:30:00" itemprop="dateCreated datePublished" datetime="2019-10-28T22:30:00+08:00">2019-10-28</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-03-10 00:32:40" itemprop="dateModified" datetime="2020-03-10T00:32:40+08:00">2020-03-10</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/AI-Chip/" itemprop="url" rel="index"><span itemprop="name">AI Chip</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          <br>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <blockquote>
+<p>在<a href="http://localhost:4000/2019/08/21/ata_reuse_in_hpconv/" target="_blank" rel="noopener">AI芯片：高性能卷积计算中的数据复用</a>曾提到，基于变换域的卷积计算——譬如Winograd卷积——并不能适应算法上对卷积计算多变的需求。但Winograd卷积依旧出现在刚刚公开的ARM Ethos-N57和Ethos-N37 NPUs的支持特性中，本文将利用Nvidia开源的NVIDIA Deep Learning Accelerator (NVDLA)为例，分析在硬件中支持Winograd卷积的实现方式，代价和收益；以期对基于变换域卷积的优势和不足有更深的认识。</p>
+</blockquote>
+<h1 id="1-Windgrad卷积的计算方式"><a href="#1-Windgrad卷积的计算方式" class="headerlink" title="1. Windgrad卷积的计算方式"></a>1. Windgrad卷积的计算方式</h1><p>卷积神经网络中的三维卷积（后文简称为卷积）计算过程可以表示如下，将这种直接通过原始定义计算卷积的方式称为直接卷积（Direct Convolution）。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">for i = 1 : Ho</span><br><span class="line">    for j = 1 : Wo</span><br><span class="line">        for k = 1 : Co</span><br><span class="line">            for l = 1 : R</span><br><span class="line">                for m = 1 : S</span><br><span class="line">                    for n = 1 : Ci</span><br><span class="line">                        out[i,j,k] += In[i*s+l.j*s+m,n]*F[l,m,n];</span><br></pre></td></tr></table></figure>
+
+<p>其中各参数的含义如下表</p>
+<table>
+<thead>
+<tr>
+<th>数据维度</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ho/Wo</td>
+<td>输出feature map的高和宽</td>
+</tr>
+<tr>
+<td>Co</td>
+<td>输出的channel数目</td>
+</tr>
+<tr>
+<td>R/S</td>
+<td>filter的高和宽</td>
+</tr>
+<tr>
+<td>Ci</td>
+<td>输入的channel数目</td>
+</tr>
+<tr>
+<td>s</td>
+<td>卷积计算的stride</td>
+</tr>
+</tbody></table>
+<p>和一般的乘加运算不同，卷积计算中有滑窗的过程，充分利用这一点特性可以节约计算过程中的乘法次数。关于Winograd的原理和推导，可以参考<a href="https://blog.csdn.net/antkillerfarm/article/details/78769624" target="_blank" rel="noopener">https://blog.csdn.net/antkillerfarm/article/details/78769624</a>中的相关内容。此处直接给出3x3, stride=1卷积下Winograd卷积的形式(参见<a href="http://nvdla.org/hw/v1/ias/unit_description.html" target="_blank" rel="noopener">NVDLA Unit</a>)。<br>$$S = A^T\left[\left(GgG^T\right) \odot \left( C^TdC \right) \right]A $$</p>
+<p>$$<br>g = \begin{bmatrix}<br>wt_{0,0} &amp; wt_{0,1} &amp; wt_{0,2} \<br>wt_{1,0} &amp; wt_{1,1} &amp; wt_{1,2} \ <br>wt_{2,0} &amp; wt_{2,1} &amp; wt_{2,2}<br>\end{bmatrix}<br>$$</p>
+<p>$$d = \begin{bmatrix}<br>x_{0,0} &amp; x_{0,1} &amp; x_{0,2}  &amp; x_{0,3}\ <br>x_{1,0} &amp; x_{1,1} &amp; x_{1,2}  &amp; x_{1,3}\ <br>x_{2,0} &amp; x_{2,1} &amp; x_{2,2}  &amp; x_{2,3}\ <br>x_{3,0} &amp; x_{3,1} &amp; x_{3,2}  &amp; x_{3,3}<br>\end{bmatrix}<br>$$</p>
+<p>$$C = \begin{bmatrix}<br>1 &amp; 0 &amp; 0  &amp; 0 \ <br>0 &amp; 1 &amp; -1 &amp; 1 \ <br>-1&amp; 1 &amp; 1  &amp; 0 \ <br>0 &amp; 0 &amp; 0  &amp; -1<br>\end{bmatrix}<br>$$</p>
+<p>$$G = \begin{bmatrix}<br>1   &amp; 0   &amp; 0  \ <br>0.5 &amp; 0.5 &amp; 0.5 \ <br>0.5 &amp; -0.5&amp; 0.5  \ <br>0   &amp; 0   &amp; 1<br>\end{bmatrix}<br>$$</p>
+<p>$$A_T = \begin{bmatrix}<br>1 &amp; 1 &amp; 1 &amp; 0 \ <br>0 &amp; 1 &amp;-1 &amp;-1<br>\end{bmatrix}<br>$$</p>
+<p>其中$g$是3x3的kernel，$d$是4x4的feature map，$\odot$表示矩阵对应位置元素相乘。$s$表示2x2的卷积结果。矩阵$C$, $G$, $A$为常量，用于Wingrad卷积中的变换。由于$C$, $G$, $A$中各元素取值为$\pm1,\pm0.5$, 因此计算可以通过加减和简单移位得到，认为不需要进行乘法运算。<br>因此，采用Winograd卷积计算得到4哥输出结果需要16次乘法计算，而直接卷积需要36次乘法计算。但是由于Winograd在变换中加入了加法计算，因此加法次数会有一定增加。注意上述讨论中并没有加入Channel方向，这是因为此处卷积在Channel上实际上依旧退化成了简单的乘加运算，因此无论在变换前后进行Channel方向计算均没有区别。</p>
+<p>一段直接卷积和Winograd卷积对比的代码如下所示</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> numpy <span class="keyword">as</span> np</span><br><span class="line">g = np.random.randint(<span class="number">-128</span>,<span class="number">127</span>,(<span class="number">3</span>,<span class="number">3</span>))</span><br><span class="line">d = np.random.randint(<span class="number">-128</span>,<span class="number">127</span>,(<span class="number">4</span>,<span class="number">4</span>))</span><br><span class="line">direct_conv = np.zeros((<span class="number">2</span>,<span class="number">2</span>))</span><br><span class="line"><span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">2</span>):</span><br><span class="line">    <span class="keyword">for</span> j <span class="keyword">in</span> range(<span class="number">2</span>):</span><br><span class="line">        <span class="keyword">for</span> r <span class="keyword">in</span> range(<span class="number">3</span>):</span><br><span class="line">            <span class="keyword">for</span> s <span class="keyword">in</span> range(<span class="number">3</span>):</span><br><span class="line">                direct_conv[i,j] =  direct_conv[i,j] + d[i+r,j+s]*g[r,s]</span><br><span class="line"></span><br><span class="line">C = np.array([[<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>],[<span class="number">0</span>,<span class="number">1</span>,<span class="number">-1</span>,<span class="number">1</span>],[<span class="number">-1</span>,<span class="number">1</span>,<span class="number">1</span>,<span class="number">0</span>],[<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>,<span class="number">-1</span>]])</span><br><span class="line">G = np.array([[<span class="number">1</span>,<span class="number">0</span>,<span class="number">0</span>],[<span class="number">0.5</span>,<span class="number">0.5</span>,<span class="number">0.5</span>],[<span class="number">0.5</span>,<span class="number">-0.5</span>,<span class="number">0.5</span>],[<span class="number">0</span>,<span class="number">0</span>,<span class="number">1</span>]])</span><br><span class="line">AT = np.array([[<span class="number">1</span>,<span class="number">1</span>,<span class="number">1</span>,<span class="number">0</span>],[<span class="number">0</span>,<span class="number">1</span>,<span class="number">-1</span>,<span class="number">-1</span>]])</span><br><span class="line">U = G.dot(g).dot(G.transpose())</span><br><span class="line">V = C.transpose().dot(d).dot(C)</span><br><span class="line">wg_conv = AT.dot(U*V).dot(AT.transpose())</span><br><span class="line"></span><br><span class="line">print(direct_conv)</span><br><span class="line">print(wg_conv)</span><br></pre></td></tr></table></figure>
+
+<p>由计算结果可知，两者结果完全一致（如果采用浮点数时可能会有量化误差，但都在合理范围内）</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">&gt;&gt;&gt; <span class="built_in">print</span>(direct_conv)</span><br><span class="line">[[-23640.    -51.]</span><br><span class="line"> [-10740.   8740.]]</span><br><span class="line">&gt;&gt;&gt; <span class="built_in">print</span>(wg_conv)</span><br><span class="line">[[-23640.    -51.]</span><br><span class="line"> [-10740.   8740.]]</span><br></pre></td></tr></table></figure>
+
+<h1 id="2-NVDLA中的的直接卷积"><a href="#2-NVDLA中的的直接卷积" class="headerlink" title="2. NVDLA中的的直接卷积"></a>2. NVDLA中的的直接卷积</h1><p>在硬件设计过程中不可能为直接卷积和Winograd卷积分别设计完全独立的计算和控制逻辑，由于直接卷积有计算灵活和适应性强的特点，各类神经网络加速器都有支持。因此，Winograd一定是建立在直接卷积硬件结构基础上的拓展功能。在探究NVDLA中的Winograd卷积设计之前，必须先明确NVDLA中的的直接卷积的计算方式。<br>Nvidia的相关文档中十分详细的NVDLA计算直接卷积的流程（<a href="http://nvdla.org/hw/v1/ias/unit_description.html" target="_blank" rel="noopener">NVDLA Unit</a>)，其将卷积计算分成了五级（下述描述中，以数值精度为Int16为例）</p>
+<ul>
+<li>Atomic Operation （原子操作，完成16次64次乘法并将其加在一起）</li>
+<li>Stripe Operation （条带操作，完成16次独立的Atomic Operation）</li>
+<li>Block Operation  （块操作，完成kernel的R/S方向的累加）</li>
+<li>Channel Operation（通道操作，完成Channel方向计算的累加）</li>
+<li>Group Operation  （分组操作，完成一组kernel的全部计算）</li>
+</ul>
+<p><a href="http://nvdla.org/hw/v1/ias/unit_description.html" target="_blank" rel="noopener">NVDLA Unit</a>中给出了可视化的图像用于描述这个过程，这一过程实际上就是卷积的六层循环计算过程的拆解，可以表示如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> k = <span class="number">1</span> : Co/<span class="number">16</span></span><br><span class="line">    <span class="keyword">for</span> i = <span class="number">1</span> : Ho/<span class="number">4</span>                                <span class="comment">// Group Operation</span></span><br><span class="line">        <span class="keyword">for</span> j = <span class="number">1</span> : Wo/<span class="number">4</span>                            <span class="comment">// Group Operation</span></span><br><span class="line">            <span class="keyword">for</span> n = <span class="number">1</span> : Ci/<span class="number">64</span>                       <span class="comment">// Channel Operation</span></span><br><span class="line">                <span class="keyword">for</span> l = <span class="number">1</span> : R                       <span class="comment">// Block Operation</span></span><br><span class="line">                    <span class="keyword">for</span> m = <span class="number">1</span> : S                   <span class="comment">// Block Operation</span></span><br><span class="line">                        <span class="keyword">for</span> ii = <span class="number">1</span>:<span class="number">4</span>                <span class="comment">// Strip Operation</span></span><br><span class="line">                            <span class="keyword">for</span> ji = <span class="number">1</span>:<span class="number">4</span>            <span class="comment">// Strip Operation</span></span><br><span class="line">                                <span class="keyword">for</span> ki = <span class="number">1</span>：<span class="number">16</span>      <span class="comment">// Antomic Operation</span></span><br><span class="line">                                    <span class="keyword">for</span> ni = <span class="number">1</span>：<span class="number">64</span>  <span class="comment">// Antomic Block</span></span><br><span class="line">                                        out[i*<span class="number">4</span>+ii,j*<span class="number">4</span>+jj,k*<span class="number">16</span>+ki] += </span><br><span class="line">                                        In[(i*<span class="number">4</span>+ii)*s+l.(j*<span class="number">4</span>+jj)*s+m,n*<span class="number">64</span>+ni]*F[l,m,n*<span class="number">64</span>+ni];</span><br></pre></td></tr></table></figure>
+
+<p>其中，Atomic Operation决定了NVDLA乘法阵列的设计。根据设计可以看出，NVDLA有16份完全一致的乘法阵列用于计算16个不同Kernel的乘法；而每个乘法阵列中有64个乘法和一棵64输入的加法树。<br>计算顺序还一定程度确定了NVDLA的Buffer设计和数据路径设计。在计算直接卷积时，每周期需要128Byte的Feature/Pixel数据，实际上时规则的64Channel的数据；因此在存储时只需要每个Bank上存储64Channel数据，使用时通过MUX选出指定Bank数据即可。在进行结果写回时，每周期需要写回16个Feature数据。由于Winograd卷积使用的Weight可以提前算好，对比直接卷积和Winograd卷积时可以忽略Weight路径。</p>
+<h1 id="3-NVDLA中的Winograd卷积"><a href="#3-NVDLA中的Winograd卷积" class="headerlink" title="3. NVDLA中的Winograd卷积"></a>3. NVDLA中的Winograd卷积</h1><p>建立在直接卷积的硬件架构上，NVDLA针对Winograd卷积进行了一系列的修改。从计算方式上来说，不再同时计算64个Channel的乘加；从硬件架构上来说，进行了计算修改和数据路径修改。根据NVDLA的设计，Winograd卷积的计算$S = A^T\left[\left(GgG^T\right) \odot \left( C^TdC \right) \right]A$ 实际上分布在不同的阶段/模块进行。</p>
+<ul>
+<li>$U = GgG^T $是离线预先计算好的</li>
+<li>$V = C^TdC $是在数据路径上计算的</li>
+<li>$S = A^T\left[ U\odot V\right]A$ 是在计算阵列中计算的</li>
+</ul>
+<p>首先考虑计算阵列的设计。NVDLA计算3x3卷积，每次输出2x2共计4个数，计算过程中有4x4的矩阵点乘计算；结合直接卷积中64个乘法计算，Winograd卷积同时计算了4个Channel，共计4x4x4=64次乘法。乘法计算本身没有区别，但在进行加法时，和直接卷积略有不同，用代码可表示为</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">//direct conv &amp; winograd conv</span></span><br><span class="line"><span class="keyword">for</span> i = <span class="number">1</span>:<span class="number">16</span></span><br><span class="line">    s1[i] = s0[i*<span class="number">4</span>+<span class="number">0</span>] + s0[i*<span class="number">4</span>+<span class="number">1</span>] + s0[i*<span class="number">4</span>+<span class="number">2</span>] + s0[i*<span class="number">4</span>+<span class="number">3</span>];</span><br><span class="line"></span><br><span class="line"><span class="comment">//direct conv</span></span><br><span class="line"><span class="keyword">for</span> i = <span class="number">1</span>:<span class="number">8</span></span><br><span class="line">    s2[i] = s1[i*<span class="number">2</span>+<span class="number">0</span>] + s1[i*<span class="number">2</span>+<span class="number">1</span>];</span><br><span class="line"><span class="keyword">for</span> i = <span class="number">1</span>:<span class="number">4</span></span><br><span class="line">    s3[i] = s2[i*<span class="number">2</span>+<span class="number">0</span>] + s2[i*<span class="number">2</span>+<span class="number">1</span>];</span><br><span class="line">s4[i] = s3[<span class="number">0</span>] + s3[<span class="number">1</span>] + s3[<span class="number">2</span>] + s3[<span class="number">3</span>];</span><br><span class="line"></span><br><span class="line"><span class="comment">//winograd conv</span></span><br><span class="line"><span class="keyword">for</span> i=<span class="number">1</span>:<span class="number">4</span></span><br><span class="line">    s2_wg[<span class="number">0</span>][i] = s1[i*<span class="number">4</span>+<span class="number">0</span>] + s1[i*<span class="number">4</span>+<span class="number">1</span>] + s1[i*<span class="number">4</span>+<span class="number">2</span>];</span><br><span class="line">    s2_wg[<span class="number">0</span>][i] = s1[i*<span class="number">4</span>+<span class="number">1</span>] - s1[i*<span class="number">4</span>+<span class="number">2</span>] + s1[i*<span class="number">4</span>+<span class="number">3</span>];</span><br><span class="line">s3_wg[<span class="number">0</span>][<span class="number">0</span>] = s2_wg[<span class="number">0</span>][<span class="number">0</span>] + s2_wg[<span class="number">0</span>][<span class="number">1</span>] + s2_wg[<span class="number">0</span>][<span class="number">2</span>];</span><br><span class="line">s3_wg[<span class="number">1</span>][<span class="number">0</span>] = s2_wg[<span class="number">1</span>][<span class="number">0</span>] + s2_wg[<span class="number">1</span>][<span class="number">1</span>] + s2_wg[<span class="number">1</span>][<span class="number">2</span>];</span><br><span class="line">s3_wg[<span class="number">0</span>][<span class="number">1</span>] = s2_wg[<span class="number">0</span>][<span class="number">1</span>] - s2_wg[<span class="number">0</span>][<span class="number">1</span>] - s2_wg[<span class="number">0</span>][<span class="number">2</span>];</span><br><span class="line">s3_wg[<span class="number">1</span>][<span class="number">1</span>] = s2_wg[<span class="number">1</span>][<span class="number">1</span>] - s2_wg[<span class="number">1</span>][<span class="number">1</span>] - s2_wg[<span class="number">1</span>][<span class="number">2</span>];</span><br></pre></td></tr></table></figure>
+
+<p>代码中只有第一级的加法被direct conv和winograd conv完全复用，其他级的加法略有不同。在NVDLA中，加法是使用Wallace Tree完成的，以提高性能降低资源占用。Direct Conv中和Winograd Conv中的后面几级加法还进行了进一步复用。总体来说，从代码上看（参见NV_NVDLA_CMAC_CORE_mac.v），为了支持Winograd卷积</p>
+<ul>
+<li>加法的第三级中增加了4棵4-2的Wallace Tree Compressor</li>
+<li>加法的第四级中增加了2棵4-2的Wallace Tree Compressor</li>
+<li>加法的第五级中增加了2棵6-2的Wallace Tree Compressor</li>
+<li>增加了一些MUX以direct conv和winograd conv</li>
+</ul>
+<p>其次考虑数据路径，包括读取的数据路径和写回的数据路径。对于读取而言，除了需要针对Winograd专门设计取址逻辑和数据选择逻辑，还需要完成$V = C^TdC $的计算；根据文档描述，这一计算过程是在PRA（Pre-addition）中完成的。从代码上看（参见NV_NVDLA_CSC_dl.v）</p>
+<ul>
+<li>针对Winograd的地址生成增加的控制逻辑可以忽略</li>
+<li>针对Winograd的数据选择增加数千的寄存器</li>
+<li>PRA采用MENTOR的HLS综合工具实现，共实现了4份，和MAC阵列（1024乘加）对比，此处的计算资源较少</li>
+</ul>
+<p>对于写回路径而言，为了完成卷积计算，在乘加后增加了累加器和SRAM，其设计如下图所示(ref. <a href="http://nvdla.org/_images/ias_image21_cacc.png" target="_blank" rel="noopener">http://nvdla.org/_images/ias_image21_cacc.png</a>)</p>
+<p><img src="http://nvdla.org/_images/ias_image21_cacc.png" alt></p>
+<p>和Direct Conv一次输出16个结果相比，Winograd Conv输出的结果为64。这意味着为了支持Winograd Conv，需要额外增加48组高位宽的累加器。同时，SRAM的大小也需要设置为原先的四倍。</p>
+<h1 id="4-相关讨论"><a href="#4-相关讨论" class="headerlink" title="4. 相关讨论"></a>4. 相关讨论</h1><p>NVDLA为了同时支持Direct Conv和Winograd Conv显然付出了一些代价。定性的分析来看，包括</p>
+<ul>
+<li>4组PRA，每组PRA中约有8次加法</li>
+<li>16棵加法树，每棵增加了约8次加法</li>
+<li>48组高位宽加法</li>
+<li>增加了约25KB的Accumulator SRAM</li>
+</ul>
+<p>而作为对比，一些典型数据包括</p>
+<ul>
+<li>MAC阵列中有1024次乘法和约1024次加法</li>
+<li>用于存放Feature/Pixel/Weight的Buffer大小为512KB</li>
+</ul>
+<p>显然，为了支持Winograd Conv增加的资源并不会太多。当然，虽然读取路径和计算阵列的设计受Winograd Conv的影响不大；但是对于写回路径而言，数据位宽发生了变化，一定程度影响了整体的架构设计。可能可以优化的地方包括将Direct Conv的输出也改成2x2的大小，这样写回的数据路径上Direct Conv和Winograd Conv就没有差别了。</p>
+<p>NVDLA是一个相对专用的加速器，从相关文档中也可以看出，NVDLA专门针对计算中的各种特性/数据排列进行了硬件上的处理。而现有的很多加速器，为了兼顾不同网络的计算效率，往往更为灵活。在这种情况下，Winograd Conv应该作为设计的可选项，这是因为</p>
+<ul>
+<li>计算3x3卷积有2.25x的理论提升</li>
+<li>Winograd Conv的乘法依旧是矩阵计算</li>
+<li>Winograd Conv的数据路径和直接卷积没有必然的冲突</li>
+<li>Winograd Conv的加法可以直接在数据路径上完成，甚至不影响其他设计</li>
+<li>如果加速器设计粒度足够细，甚至可以从软件调度上直接支持Winograd Conv</li>
+</ul>
+<p>完全不考虑Winograd Conv的理由只可能是未来算法发展趋势下，3x3的普通卷积计算量占比会大大下降。</p>
+<h1 id="5-参考"><a href="#5-参考" class="headerlink" title="5. 参考"></a>5. 参考</h1><ol>
+<li><a href="http://nvdla.org/contents.html" target="_blank" rel="noopener">NVDLA Documentation</a></li>
+<li><a href="https://github.com/nvdla/hw" target="_blank" rel="noopener">NVDLA Soruce Code</a></li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+          
+        
+        <div class="post-tags">
+            <a href="/tags/Architecture/" rel="tag"># Architecture</a>
+          
+            <a href="/tags/AI-CHip/" rel="tag"># AI CHip</a>
+          
+            <a href="/tags/Winograd-Convolution/" rel="tag"># Winograd Convolution</a>
+          
+        </div>
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+              <a href="/2019/08/21/ata_reuse_in_hpconv/" rel="next" title="AI芯片：高性能卷积计算中的数据复用">
+                <i class="fa fa-chevron-left"></i> AI芯片：高性能卷积计算中的数据复用
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+              <a href="/2020/03/09/matrix_accel_design/" rel="prev" title="矩阵乘法加速器的设计框架">
+                矩阵乘法加速器的设计框架 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name"></p>
+  <div class="site-description motion-element" itemprop="description"></div>
+</div>
+  <nav class="site-state motion-element">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">9</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        
+        
+          
+        
+          
+        
+        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-name">分类</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+          
+        
+        <span class="site-state-item-count">19</span>
+        <span class="site-state-item-name">标签</span>
+        </a>
+      </div>
+    
+  </nav>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+      
+      
+        
+      
+      
+        
+      
+        <a href="https://github.com/cea-wind" title="GitHub &rarr; https://github.com/cea-wind" rel="noopener" target="_blank"><i class="fa fa-fw fa-github"></i>GitHub</a>
+      </span>
+    
+  </div>
+
+
+
+        </div>
+      </div>
+      <!--noindex-->
+        <div class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+            
+            
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-Windgrad卷积的计算方式"><span class="nav-text">1. Windgrad卷积的计算方式</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-NVDLA中的的直接卷积"><span class="nav-text">2. NVDLA中的的直接卷积</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-NVDLA中的Winograd卷积"><span class="nav-text">3. NVDLA中的Winograd卷积</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#4-相关讨论"><span class="nav-text">4. 相关讨论</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#5-参考"><span class="nav-text">5. 参考</span></a></li></ol></div>
+            
+
+          </div>
+        </div>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder"></span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.3.0</div>
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+      </div>
+
+    
+
+  </div>
+
+  
+  <script src="/lib/jquery/index.js?v=3.4.1"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  <script src="/js/utils.js?v=7.3.0"></script>
+  <script src="/js/motion.js?v=7.3.0"></script>
+
+  
+  <script src="/js/affix.js?v=7.3.0"></script>
+  <script src="/js/schemes/pisces.js?v=7.3.0"></script>
+
+
+  
+  <script src="/js/scrollspy.js?v=7.3.0"></script>
+<script src="/js/post-details.js?v=7.3.0"></script>
+
+
+
+  <script src="/js/next-boot.js?v=7.3.0"></script>
+
+  
+
+  
+
+  
+
+
+  
+  <script>
+    (function(){
+      var bp = document.createElement('script');
+      var curProtocol = window.location.protocol.split(':')[0];
+      bp.src = (curProtocol === 'https') ? 'https://zz.bdstatic.com/linksubmit/push.js' : 'http://push.zhanzhang.baidu.com/push.js';
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(bp, s);
+    })();
+  </script>
+
+
+
+  
+    
+      <script type="text/x-mathjax-config">
+
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [ ['$', '$'], ['\\(', '\\)'] ],
+      processEscapes: true,
+      skipTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+    },
+    TeX: {
+      equationNumbers: {
+        autoNumber: 'AMS'
+      }
+    }
+  });
+
+  MathJax.Hub.Register.StartupHook('TeX Jax Ready', function() {
+    MathJax.InputJax.TeX.prefilterHooks.Add(function(data) {
+      if (data.display) {
+        var next = data.script.nextSibling;
+        while (next && next.nodeName.toLowerCase() === '#text') {
+          next = next.nextSibling;
+        }
+        if (next && next.nodeName.toLowerCase() === 'br') {
+          next.parentNode.removeChild(next);
+        }
+      }
+    });
+  });
+
+  MathJax.Hub.Queue(function() {
+    var all = MathJax.Hub.getAllJax(), i;
+    for (i = 0; i < all.length; i += 1) {
+      element = document.getElementById(all[i].inputID + '-Frame').parentNode;
+      if (element.nodeName.toLowerCase() == 'li') {
+        element = element.parentNode;
+      }
+      element.classList.add('has-jax');
+    }
+  });
+</script>
+<script src="//cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+    
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body>
+</html>

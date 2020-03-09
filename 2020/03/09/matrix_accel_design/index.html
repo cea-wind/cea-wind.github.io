@@ -57,22 +57,21 @@
   };
 </script>
 
-  <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
-<meta name="keywords" content="Tensor Processing Unit,Architecture,Instruction Level Parallelism,Data Parallelism,VLIW,SMID,Vector Architecture">
+  <meta name="description" content="以往我分析了一些AI加速器的设计，包括TPU，FSD，华为达芬奇等，无一例外都是从已经给出的设计出发，去分析其优缺点和应用范围。在之前的文章中，关于这些设计是如何完成的，其背后是否有一定设计原则和理念的内容均没有进行探讨。而这两点，实则是设计一个优秀的，可持续迭代的加速器的基础。本文将从矩阵加速器出发，通过一些简化的模型，给出简单的设计框架。  1. 矩阵乘法和硬件模型一般来说，矩阵乘法加速器中">
+<meta name="keywords" content="Architecture,AI CHip,Matrix Accelerator">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Simple TPU的设计和性能评估">
-<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/TPU_c5/index.html">
+<meta property="og:title" content="矩阵乘法加速器的设计框架">
+<meta property="og:url" content="http://cea-wind.github.io/2020/03/09/matrix_accel_design/index.html">
 <meta property="og:site_name" content="SEAWIND">
-<meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta property="og:description" content="以往我分析了一些AI加速器的设计，包括TPU，FSD，华为达芬奇等，无一例外都是从已经给出的设计出发，去分析其优缺点和应用范围。在之前的文章中，关于这些设计是如何完成的，其背后是否有一定设计原则和理念的内容均没有进行探讨。而这两点，实则是设计一个优秀的，可持续迭代的加速器的基础。本文将从矩阵加速器出发，通过一些简化的模型，给出简单的设计框架。  1. 矩阵乘法和硬件模型一般来说，矩阵乘法加速器中">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png">
-<meta property="og:updated_time" content="2019-08-03T09:25:44.000Z">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200309214550.png">
+<meta property="og:updated_time" content="2020-03-09T16:07:08.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Simple TPU的设计和性能评估">
-<meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png">
-  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/TPU_c5/">
+<meta name="twitter:title" content="矩阵乘法加速器的设计框架">
+<meta name="twitter:description" content="以往我分析了一些AI加速器的设计，包括TPU，FSD，华为达芬奇等，无一例外都是从已经给出的设计出发，去分析其优缺点和应用范围。在之前的文章中，关于这些设计是如何完成的，其背后是否有一定设计原则和理念的内容均没有进行探讨。而这两点，实则是设计一个优秀的，可持续迭代的加速器的基础。本文将从矩阵加速器出发，通过一些简化的模型，给出简单的设计框架。  1. 矩阵乘法和硬件模型一般来说，矩阵乘法加速器中">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200309214550.png">
+  <link rel="canonical" href="http://cea-wind.github.io/2020/03/09/matrix_accel_design/">
 
 
 <script id="page.configurations">
@@ -81,7 +80,7 @@
   };
 </script>
 
-  <title>Simple TPU的设计和性能评估 | SEAWIND</title>
+  <title>矩阵乘法加速器的设计框架 | SEAWIND</title>
   
 
 
@@ -218,7 +217,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/TPU_c5/">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2020/03/09/matrix_accel_design/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="">
@@ -232,7 +231,7 @@
       <header class="post-header">
 
         
-          <h2 class="post-title" itemprop="name headline">Simple TPU的设计和性能评估
+          <h2 class="post-title" itemprop="name headline">矩阵乘法加速器的设计框架
 
               
             
@@ -252,11 +251,21 @@
                 
               
 
-              <time title="创建时间：2019-08-03 02:56:17 / 修改时间：17:25:44" itemprop="dateCreated datePublished" datetime="2019-08-03T02:56:17+08:00">2019-08-03</time>
+              <time title="创建时间：2020-03-09 21:12:52" itemprop="dateCreated datePublished" datetime="2020-03-09T21:12:52+08:00">2020-03-09</time>
             </span>
           
             
 
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-03-10 00:07:08" itemprop="dateModified" datetime="2020-03-10T00:07:08+08:00">2020-03-10</time>
+              </span>
             
           
             <span class="post-meta-item">
@@ -267,7 +276,7 @@
                 <span class="post-meta-item-text">分类于</span>
               
               
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/TPU/" itemprop="url" rel="index"><span itemprop="name">TPU</span></a></span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/AI-Chip/" itemprop="url" rel="index"><span itemprop="name">AI Chip</span></a></span>
 
                 
                 
@@ -287,82 +296,37 @@
 
       
         <blockquote>
-<p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
+<p>以往我分析了一些AI加速器的设计，包括TPU，FSD，华为达芬奇等，无一例外都是从已经给出的设计出发，去分析其优缺点和应用范围。在之前的文章中，关于这些设计是如何完成的，其背后是否有一定设计原则和理念的内容均没有进行探讨。而这两点，实则是设计一个优秀的，可持续迭代的加速器的基础。本文将从矩阵加速器出发，通过一些简化的模型，给出简单的设计框架。</p>
 </blockquote>
-<h1 id="1-完成SimpleTPU的设计"><a href="#1-完成SimpleTPU的设计" class="headerlink" title="1. 完成SimpleTPU的设计"></a>1. 完成SimpleTPU的设计</h1><p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c1/">谷歌TPU概述和简化</a>中给出过SimpleTPU的框图，如下图所示。</p>
-<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png" alt></p>
-<p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>中介绍了矩阵/卷积计算中的主要计算单元——乘加阵列（上图4），完成了该部分的硬件代码并进行了简单的验证；在<a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a>中介绍了卷积神经网络中的归一化和池化的实现方式（上图6），同时论述了浮点网络定点化的过程，并给出了Simple TPU中量化的实现方式，完成了该部分的硬件代码并进行了验证。</p>
-<p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c4/">TPU中的指令并行和数据并行</a>中对整个处理单元的体系结构进行了分析和论述，包括指令并行和数据并行两个方面。那么，如何在<a href="https://cea-wind.github.io/2019/08/02/TPU_c4/">TPU中的指令并行和数据并行</a>中提到的设计思路下，将<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>和<a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a>中提到的计算单元充分的利用，是完成Simple TPU设计的最后一步。根据SimpleTPU的框图可知，需要实现的功能包括</p>
-<ul>
-<li>指令的取指和译码（上图4）</li>
-<li>Weight的读取（上图2）</li>
-<li>各个执行单元的控制和调度（上图1）</li>
-<li>读取图像和写回结果（上图5）</li>
-</ul>
-<p>在SimpleTPU的设计中，指令的取指和译码和Weight的读取功能都较为简单，可直接参照代码。</p>
-<p>在对各个执行单元进行控制和调度时需要确保各个单元可以共同执行，没有相互之间的数据依赖关系。</p>
-<p> 除此之外，还需要单独实现读取图像和写回结果的功能。SimpleTPU中只关注核心的计算功能，该部分功能并未进行优化，后续对实现效果进行分析时，也会将该部分运行时间排除在外。</p>
-<p>至此，Simple TPU的设计基本完成了，代码可参见<a href="https://github.com/cea-wind/SimpleTPU" target="_blank" rel="noopener">https://github.com/cea-wind/SimpleTPU</a>。</p>
-<h1 id="2-SimpleTPU的特性"><a href="#2-SimpleTPU的特性" class="headerlink" title="2. SimpleTPU的特性"></a>2. SimpleTPU的特性</h1><p>SimpleTPU的主要特性包括</p>
-<ul>
-<li>支持INT8乘法，支持INT32的累加操作</li>
-<li>采用VLIW进行指令并行</li>
-<li>采用向量体系结构进行数据并行</li>
-</ul>
-<p>SimpleTPU依照Google TPU V1的设计思路，可以完成神经网络推理过程中的大部分运算。依据设计，支持的运算包括（理论）</p>
-<table>
-<thead>
-<tr>
-<th>Operate</th>
-<th>Support</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Conv3d</td>
-<td>in_channels: Resource Constrained  <br> out_channels: Resource Constrained<br>kerner_size: Support<br>stride: support<br>padding: Support<br>dilation:Support<br>groups: Architecture Constrained<br>bias    :Support</td>
-</tr>
-<tr>
-<td>ConvTranspose3d</td>
-<td>The same as above</td>
-</tr>
-<tr>
-<td>Maxpool2d</td>
-<td>kernel_size: Support <br>stride: Support<br>padding: Support</td>
-</tr>
-<tr>
-<td>Avgpool2d</td>
-<td>The same as above</td>
-</tr>
-<tr>
-<td>Relu</td>
-<td>Only support Relu as nonlinear function</td>
-</tr>
-<tr>
-<td>BatchNorm2d</td>
-<td>BatchNorm2d is merge with Conv or Pool when inference</td>
-</tr>
-<tr>
-<td>Linear</td>
-<td>Resource Constrained</td>
-</tr>
-<tr>
-<td>UpscalingNearest2D</td>
-<td>Support (calling Avgpool2d multiple times.)</td>
-</tr>
-<tr>
-<td>UpscalingBilinear2D</td>
-<td>Support (calling Avgpool2d multiple times.)</td>
-</tr>
-</tbody></table>
-<p>其中，Resource Constrained代表该参数的取值范围有限，主要受限于SimpleTPU的存储设计等。由于架构设计上的问题，SimpleTPU对groupconv支持极为有限，在不合适的参数下效率可能远低于普通卷积；类似的，Google TPU也不能很好支持groupconv，并明确告知不制止depthwise conv（极度稀疏化的group conv）。</p>
-<p>BatchNorm2d在推理过程中实际上时进行逐点的乘法和加法，其中加法计算可以融合到下一层或者上一层的卷积计算中进行，乘法计算可以和pooling计算融合。在SimpleTPU设计，每次完成卷积计算后，均要进行一次Pooling计算，即使网络中没有pooling层，SimipleTPU增加了一个1*1，stride=1的pooling层进行等价。</p>
-<p>Upscaling操作通过pooling完成计算。这是因为在SimpleTPU中，reshape操作（支持的）是没有代价的。pooling操作可以完成双线性插值的计算，因此可以完成upscaling中的所有数值的计算。可以理解为通过pooling+reshape完成了upscaling的计算。</p>
-<h1 id="3-SimpleTPU的性能"><a href="#3-SimpleTPU的性能" class="headerlink" title="3. SimpleTPU的性能"></a>3. SimpleTPU的性能</h1><p>Simple TPU设计了一个32×32的int8乘加阵列计算矩阵乘法和卷积，和一个1×32的int32乘法阵列进行池化和归一化的计算。根据Xilinx HLS工具的综合结果，在UltraScale+系列的FPGA器件上，工作频率可达500MHz。因此SimpleTPU的算力约为</p>
-<p>$$32\times 32 \times 500MHz \times 2 = 1 Tops$$</p>
-<p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
-<p>依据设计，SimpleTPU在适合的任务下会有很高的运行效率，TPU中的指令并行和数据并行中针对这一点又更为具体的描述。从宏观上看，SimpleTPU的各个运行单元可以流水并行的，即</p>
-<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png" alt></p>
-<p>而针对网络中计算量最大的全连接层和卷积层，针对性设计的乘法整列和向量计算的设计方法可以让其在每个时钟周期都完成有效的乘加计算；这意味着和CPU相比，SimpleTPU可以达到极高的效率。</p>
+<h1 id="1-矩阵乘法和硬件模型"><a href="#1-矩阵乘法和硬件模型" class="headerlink" title="1. 矩阵乘法和硬件模型"></a>1. 矩阵乘法和硬件模型</h1><p>一般来说，矩阵乘法加速器中需要加速的计算可表示为</p>
+<p>$$ C = A\times B + C $$</p>
+<p>其中$A\in R^{m\times k}$, $B\in R^{k\times n}$, $C\in R^{m\times n}$ 。</p>
+<p>矩阵乘法加速器，一般至少包括计算单元，缓存（SRAM等构成）和内存（譬如DDR等）。其中缓存的读写速率较高，可以和计算单元的运算速度相匹配，但容量较小；内存的容量相对缓存较大，但读写速率较低。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200309214550.png" alt></p>
+<h1 id="2-带宽优化的矩阵乘法加速器设计"><a href="#2-带宽优化的矩阵乘法加速器设计" class="headerlink" title="2. 带宽优化的矩阵乘法加速器设计"></a>2. 带宽优化的矩阵乘法加速器设计</h1><p>和一般的处理器相比，特定的加速器可以设计数量巨大的计算单元（譬如Google TPU V1设计了65536个乘法器）；但是DDR的带宽的提升却是有限的。因此，设计目标之一在于优化数据访问，降低DDR的读写带宽。</p>
+<p>假设加速器的总缓存大小为$M$, 在一次计算过程中，用于存储矩阵$A,B,C$的缓存空间大小分别为$M_A,M_B,M_C$。</p>
+<p>矩阵乘法加速器的设计目的一般是为了加速大规模的矩阵乘法计算，为了简化分析过程，假设矩阵$A,B,C$的大小$S_A,S_B,S_C$均远大于$M$，即计算过程中每次只能在缓存中存放一部分数据，完成子矩阵$A_{sub},B_{sub},C_{sub}$的计算。显然，存放在缓存中的数据都会参与运算，否在有冗余数据浪费存储和带宽。因此$A_{sub},B_{sub},C_{sub}$应能够完成一组矩阵计算，即</p>
+<p>$$A_{sub}\in R^{p\times s},B_{sub}\in R^{s\times q},C_{sub}\in R^{p\times q}$$</p>
+<p>据此，为了完成矩阵计算，从DDR到SRAM的总数据读写为</p>
+<p>$$D_{size} = n/q \times S_A + m/p \times S_B + 2\times S_C$$</p>
+<p>据此可以给出优化目标为</p>
+<p>$$<br>\mathbf{min} : mnk/q + mnk/p +2mn \ <br>\mathbf{sub.to }: p\times s + s\times q + p\times q \leqslant M\ <br> p&gt;0,s&gt;0,q&gt;0<br>$$</p>
+<p>简化为</p>
+<p>$$<br>\mathbf{min} : 1/q + 1/p \ <br>\mathbf{sub.to }: p\times s + s\times q + p\times q \leqslant M\ <br> p&gt;0,s&gt;0,q&gt;0<br>$$</p>
+<p>求解得当$s=1$，$p=q=\sqrt{M+1}-1$时得到最优解。即若要设计一个带宽优化的乘法器，应该尽可能的将缓存用于存储$C_{sub}$，每次计算的子矩阵为</p>
+<p>$$C_{sub}^{p\times q} += A_{sub}^{p\times 1}  + B_{sub}^{1\times q} $$</p>
+<p>Telsa的FSD的设计和上述讨论结果是一致的（只不过FSD的SRAM对应了上述的DDR，Register对应了上述的SRAM），FSD计算过程中$A_{sub}\in R^{96\times 1},B_{sub}\in R^{96\times 96},C_{sub}\in R^{96\times 96}$。对应的FSD的设计实际上是以降低SRAM-Register之间的读写为目的进行优化的。</p>
+<h1 id="3-计算优化的矩阵乘法加速器设计"><a href="#3-计算优化的矩阵乘法加速器设计" class="headerlink" title="3. 计算优化的矩阵乘法加速器设计"></a>3. 计算优化的矩阵乘法加速器设计</h1><p>依据第二节的结果，每次计算的子矩阵为</p>
+<p>$$C_{sub}^{p\times q} += A_{sub}^{p\times 1}  + B_{sub}^{1\times q} $$</p>
+<p>整个计算过程中，其并行度最高为${p\times q}$（即每个周期完成${p\times q}$个乘法）。而为了完成一次计算，需要从缓存里读取$p+q+q\times q$个数据送入到计算阵列中。因此一次读/写的数据位宽宽度极高，随着并行度的增长，数据位宽线性增长。</p>
+<p>数据位宽的问题主要存在$C_{sub}$上。为了解决这一问题，Telsa FSD采用了移位的方式，在计算完成后，将计算结果依次写回到SRAM中。</p>
+<p>如果设计目的在于计算阵列和缓存之间的优化，参考第二节的设计思路，在一定并行度上，希望尽可能降低缓存的读写带宽，优化目标可以表示为</p>
+<p>$$<br>\mathbf{min}:x\times y+y\times z+x\times z \<br>\mathbf{sub.to }:x\times y\times z=P \ <br> x&gt;0,y&gt;0,z&gt;0<br>$$</p>
+<p>其中$P$代表计算阵列的并行度，求解得当$x=y=z=\sqrt[3]{P}$时，此时设计的计算阵列对缓存的访问可以尽可能的低。</p>
+<p>华为的达芬奇架构中计算阵列的设计和上述讨论是一致的，达芬奇中的CUBE Core是一个$16\times16\times16$的MAC阵列（以Davinci Max为例），可以完成<br>$$C_{sub}^{16\times 16} += A_{sub}^{16\times 16}  + B_{sub}^{16\times 16} $$<br>的矩阵计算。</p>
+<h1 id="4-总结"><a href="#4-总结" class="headerlink" title="4. 总结"></a>4. 总结</h1><p>上述的所有讨论都基于一个最简单的硬件模型，从两个角度分别求解了理论上最优的设计应该是怎么样的。</p>
+<p>实际情况往往会复杂很多，硬件架构方面就会复杂很多。同时优化的目标往往有多个，而优化的限制条件也会有很多。</p>
+<p>但是在我看来，只有采用这样的设计方法，即将问题建模，求解，才能造就一个好的设计。也只有采用这样的设计方法，才能再已有的基础上，进一步增加优化目标和优化条件，进一步的优化架构设计。</p>
 
     </div>
 
@@ -374,25 +338,17 @@
           
         
         <div class="post-tags">
-            <a href="/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
-          
             <a href="/tags/Architecture/" rel="tag"># Architecture</a>
           
-            <a href="/tags/Instruction-Level-Parallelism/" rel="tag"># Instruction Level Parallelism</a>
+            <a href="/tags/AI-CHip/" rel="tag"># AI CHip</a>
           
-            <a href="/tags/Data-Parallelism/" rel="tag"># Data Parallelism</a>
-          
-            <a href="/tags/VLIW/" rel="tag"># VLIW</a>
-          
-            <a href="/tags/SMID/" rel="tag"># SMID</a>
-          
-            <a href="/tags/Vector-Architecture/" rel="tag"># Vector Architecture</a>
+            <a href="/tags/Matrix-Accelerator/" rel="tag"># Matrix Accelerator</a>
           
         </div>
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
-              <a href="/2019/08/03/TPU_c4/" rel="next" title="TPU中的指令并行和数据并行">
-                <i class="fa fa-chevron-left"></i> TPU中的指令并行和数据并行
+              <a href="/2019/10/28/nvdla_winograd_conv/" rel="next" title="NVDLA中Winograd卷积的设计">
+                <i class="fa fa-chevron-left"></i> NVDLA中Winograd卷积的设计
               </a>
             
           </div>
@@ -400,10 +356,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-              <a href="/2019/08/03/TPU_c6/" rel="prev" title="神经网络加速器应用实例：图像分类">
-                神经网络加速器应用实例：图像分类 <i class="fa fa-chevron-right"></i>
-              </a>
-            
           </div>
         </div>
     </footer>
@@ -561,7 +513,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-完成SimpleTPU的设计"><span class="nav-text">1. 完成SimpleTPU的设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-SimpleTPU的特性"><span class="nav-text">2. SimpleTPU的特性</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-SimpleTPU的性能"><span class="nav-text">3. SimpleTPU的性能</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-矩阵乘法和硬件模型"><span class="nav-text">1. 矩阵乘法和硬件模型</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-带宽优化的矩阵乘法加速器设计"><span class="nav-text">2. 带宽优化的矩阵乘法加速器设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-计算优化的矩阵乘法加速器设计"><span class="nav-text">3. 计算优化的矩阵乘法加速器设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#4-总结"><span class="nav-text">4. 总结</span></a></li></ol></div>
             
 
           </div>
