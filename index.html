@@ -209,6 +209,124 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2020/08/16/fpga_parallel_program_vector_add/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="SEAWIND">
+    </span>
+      <header class="post-header">
+
+        
+          <h2 class="post-title" itemprop="name headline">
+                
+                
+                <a href="/2020/08/16/fpga_parallel_program_vector_add/" class="post-title-link" itemprop="url">FPGA并行程序设计-向量加法</a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2020-08-16 00:01:33 / 修改时间：02:25:12" itemprop="dateCreated datePublished" datetime="2020-08-16T00:01:33+08:00">2020-08-16</time>
+            </span>
+          
+            
+
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/FPGA-HLS/" itemprop="url" rel="index"><span itemprop="name">FPGA HLS</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          <br>
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          
+            <h1 id="1-概述"><a href="#1-概述" class="headerlink" title="1. 概述"></a>1. 概述</h1><p>向量加法是一种计算简单且容易被并行化的计算，其计算可以表示为</p>
+<p>$$c[i] = a[i] + b[i], \quad i=0,1,2,…$$</p>
+<p>上述计算的代码实现如下。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_seq</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *a, <span class="keyword">int</span> *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i++)&#123;</span><br><span class="line">        c[i] = a[i] + b[i];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中向量$\bold{a,b,c}$均存储再内存中。上述代码在执行过程中，读取一个$a[i]$和$b[i]$，计算加法后将结果写回到$c[i]$中，重复执行这一过程直到计算完成。</p>
+<p>若不进行任何修改，直接将这段代码映射到FPGA上，其硬件的处理流程如下图所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021803.png" alt="示意图"></p>
+<p>从设计上看，这样一种执行方式是极其低效的，程序存在极大的优化空间。</p>
+<h1 id="2-流水线并行设计"><a href="#2-流水线并行设计" class="headerlink" title="2. 流水线并行设计"></a>2. 流水线并行设计</h1><p>在向量加法的例子中，取数，计算和写回三个过程是可以并行进行处理的。即在计算第$i$个数的加法运算时，可以预取第$i+1$个数，同时写回第$i-1$个计算结果。优化后的处理流程如下图所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021928.png" alt="示意图"></p>
+<p>这样一种并行处理的设计思路叫做“流水线并行”，顾名思义，指各个处理单元像流水线上的作业形式处理数据，进而达到提高计算速率的目的。只需要添加<code>pragma</code>对编译过程进行指示，综合工具能够自动分析并处理流水线并行设计，优化后的代码如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_pipe</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *a, <span class="keyword">int</span> *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i++)&#123;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">pragma</span> HLS PIPELINE II=1</span></span><br><span class="line">        c[i] = a[i] + b[i];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="3-数据并行设计"><a href="#3-数据并行设计" class="headerlink" title="3. 数据并行设计"></a>3. 数据并行设计</h1><p>虽然采用了流水线并行，一次计算的平均计算时间变短了，但计算过程依旧时逐个进行的。进一步的，可以采用数据并行设计，一个时钟周期处理多个数据以提高处理性能。这一并行方式类似CPU中的SIMD或GPU中的SIMT的方式。数据并行后的代码如下所示。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_parallel</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    ap_uint&lt;<span class="number">512</span>&gt; *a, ap_uint&lt;<span class="number">512</span>&gt; *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">	ap_uint&lt;<span class="number">512</span>&gt; *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i=i+<span class="number">16</span>)&#123;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">pragma</span> HLS PIPELINE II=1</span></span><br><span class="line">    	ap_uint&lt;<span class="number">512</span>&gt; rega,regb,regc;</span><br><span class="line">        rega = a[i/<span class="number">16</span>];</span><br><span class="line">        regb = b[i/<span class="number">16</span>];</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> j=<span class="number">0</span>;j&lt;<span class="number">16</span>;j++)&#123;</span><br><span class="line">        <span class="meta">#<span class="meta-keyword">pragma</span> HLS UNROLL</span></span><br><span class="line">            regc(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j) = rega(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j) +regb(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j);</span><br><span class="line">        &#125;</span><br><span class="line">        c[i/<span class="number">16</span>] = regc;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>代码中首先将接口从<code>int</code>修改成了<code>ap_uint&lt;512&gt;</code>，通过这一修改，可以同时读取16个数据。同时，计算过程中将循环拆分成了两个，并在内部循环采用了<code>UNROLL</code>的<code>pragma</code>对循环进行展开。数据并行后处理流出如下所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816022149.png" alt="示意图"></p>
+<h1 id="4-总结"><a href="#4-总结" class="headerlink" title="4. 总结"></a>4. 总结</h1><p>本节以向量加法的并行化设计过程为例展示了HLS并行程序设计中两个重要思路，流水线并行和数据并行。这两种并行设计可以分别通过HLS中的<code>LOOP PIPELINE</code>和<code>LOOP UNROLL</code>来完成。</p>
+
+          
+        
+      
+    </div>
+
+    
+    
+    
+
+    <footer class="post-footer">
+        <div class="post-eof"></div>
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+    
+      
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2020/03/09/matrix_accel_design/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -617,7 +735,7 @@
                 
                   <span class="post-meta-item-text">更新于</span>
                 
-                <time title="修改时间：2019-08-31 01:06:26" itemprop="dateModified" datetime="2019-08-31T01:06:26+08:00">2019-08-31</time>
+                <time title="修改时间：2020-03-11 23:07:20" itemprop="dateModified" datetime="2020-03-11T23:07:20+08:00">2020-03-11</time>
               </span>
             
           
@@ -741,8 +859,22 @@
 <p>下图也给出了一个具体的例子(Ref. <a href="https://www.zhihu.com/question/28385679/answer/41121948" target="_blank" rel="noopener">在 Caffe 中如何计算卷积？</a>，原始链接<a href="https://hal.inria.fr/file/index/docid/112631/filename/p1038112283956.pdf" target="_blank" rel="noopener">High Performance Convolutional Neural Networks for<br>Document Processing</a>)</p>
 <p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190825233315.png" alt></p>
 <p>此时，卷积计算等价为矩阵乘法计算；而卷积计算中的数据复用关系等价为了矩阵计算中的数据复用关系。矩阵-矩阵乘的复杂度如下所示</p>
-<p>Ex. | Mem Refs | Ops | Ops/Memory</p>
-<p>-| - | - | -<br>Matrix-Matrix Mult | $4n^2$ | $2n^3$ | $n/2$</p>
+<table>
+<thead>
+<tr>
+<th>Ex.</th>
+<th>Mem Refs</th>
+<th>Ops</th>
+<th>Ops/Memory</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Matrix-Matrix Mult</td>
+<td>$4n^2$</td>
+<td>$2n^3$</td>
+<td>$n/2$</td>
+</tr>
+</tbody></table>
 <p>现有的处理器架构从存储和计算之间的关系上来看都是类似的，处理器计算性能的上限可以通过计算单元及其运行频率确定。为了高性能的完成矩阵计算，即使得性能达到Roofline模型中峰值，需要对矩阵计算的三层循环进行优化。在进行分析之前，需要明确两点固有的特性</p>
 <ul>
 <li>处理器的存储是分层设计的，越靠近计算的单元，带宽越大，容量越小</li>
@@ -2052,7 +2184,7 @@
         
           <a href="/archives/">
         
-          <span class="site-state-item-count">9</span>
+          <span class="site-state-item-count">10</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
@@ -2071,7 +2203,9 @@
         
           
         
-        <span class="site-state-item-count">2</span>
+          
+        
+        <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">分类</span>
         </a>
       </div>
@@ -2124,7 +2258,13 @@
         
           
         
-        <span class="site-state-item-count">19</span>
+          
+        
+          
+        
+          
+        
+        <span class="site-state-item-count">22</span>
         <span class="site-state-item-name">标签</span>
         </a>
       </div>
@@ -2230,6 +2370,8 @@
     
       
         
+      
+    
       
     
       

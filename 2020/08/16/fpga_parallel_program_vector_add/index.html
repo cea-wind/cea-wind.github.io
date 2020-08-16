@@ -57,22 +57,23 @@
   };
 </script>
 
-  <meta name="description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
-<meta name="keywords" content="Tensor Processing Unit,Architecture,Instruction Level Parallelism,Data Parallelism,VLIW,SMID,Vector Architecture">
+  <meta name="description" content="1. 概述向量加法是一种计算简单且容易被并行化的计算，其计算可以表示为 $$c[i] = a[i] + b[i], \quad i=0,1,2,…$$ 上述计算的代码实现如下。 12345678void vector_add_seq(    int *a, int *b, int num,    int *c) &amp;#123;    for(int i=0;i&amp;lt;num;i++)&amp;#123;">
+<meta name="keywords" content="FPGA,Parallel Programing,HLS">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Simple TPU的设计和性能评估">
-<meta property="og:url" content="http://cea-wind.github.io/2019/08/03/TPU_c5/index.html">
+<meta property="og:title" content="FPGA并行程序设计-向量加法">
+<meta property="og:url" content="http://cea-wind.github.io/2020/08/16/fpga_parallel_program_vector_add/index.html">
 <meta property="og:site_name" content="SEAWIND">
-<meta property="og:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
+<meta property="og:description" content="1. 概述向量加法是一种计算简单且容易被并行化的计算，其计算可以表示为 $$c[i] = a[i] + b[i], \quad i=0,1,2,…$$ 上述计算的代码实现如下。 12345678void vector_add_seq(    int *a, int *b, int num,    int *c) &amp;#123;    for(int i=0;i&amp;lt;num;i++)&amp;#123;">
 <meta property="og:locale" content="zh-CN">
-<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png">
-<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png">
-<meta property="og:updated_time" content="2019-08-03T09:25:44.000Z">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021803.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021928.png">
+<meta property="og:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816022149.png">
+<meta property="og:updated_time" content="2020-08-15T18:25:12.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Simple TPU的设计和性能评估">
-<meta name="twitter:description" content="深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png">
-  <link rel="canonical" href="http://cea-wind.github.io/2019/08/03/TPU_c5/">
+<meta name="twitter:title" content="FPGA并行程序设计-向量加法">
+<meta name="twitter:description" content="1. 概述向量加法是一种计算简单且容易被并行化的计算，其计算可以表示为 $$c[i] = a[i] + b[i], \quad i=0,1,2,…$$ 上述计算的代码实现如下。 12345678void vector_add_seq(    int *a, int *b, int num,    int *c) &amp;#123;    for(int i=0;i&amp;lt;num;i++)&amp;#123;">
+<meta name="twitter:image" content="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021803.png">
+  <link rel="canonical" href="http://cea-wind.github.io/2020/08/16/fpga_parallel_program_vector_add/">
 
 
 <script id="page.configurations">
@@ -81,7 +82,7 @@
   };
 </script>
 
-  <title>Simple TPU的设计和性能评估 | SEAWIND</title>
+  <title>FPGA并行程序设计-向量加法 | SEAWIND</title>
   
 
 
@@ -218,7 +219,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2019/08/03/TPU_c5/">
+    <link itemprop="mainEntityOfPage" href="http://cea-wind.github.io/2020/08/16/fpga_parallel_program_vector_add/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="">
@@ -232,7 +233,7 @@
       <header class="post-header">
 
         
-          <h2 class="post-title" itemprop="name headline">Simple TPU的设计和性能评估
+          <h2 class="post-title" itemprop="name headline">FPGA并行程序设计-向量加法
 
               
             
@@ -252,7 +253,7 @@
                 
               
 
-              <time title="创建时间：2019-08-03 02:56:17 / 修改时间：17:25:44" itemprop="dateCreated datePublished" datetime="2019-08-03T02:56:17+08:00">2019-08-03</time>
+              <time title="创建时间：2020-08-16 00:01:33 / 修改时间：02:25:12" itemprop="dateCreated datePublished" datetime="2020-08-16T00:01:33+08:00">2020-08-16</time>
             </span>
           
             
@@ -267,7 +268,7 @@
                 <span class="post-meta-item-text">分类于</span>
               
               
-                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/TPU/" itemprop="url" rel="index"><span itemprop="name">TPU</span></a></span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/FPGA-HLS/" itemprop="url" rel="index"><span itemprop="name">FPGA HLS</span></a></span>
 
                 
                 
@@ -286,83 +287,26 @@
     <div class="post-body" itemprop="articleBody">
 
       
-        <blockquote>
-<p>深度学习飞速发展过程中，人们发现原有的处理器无法满足神经网络这种特定的大量计算，大量的开始针对这一应用进行专用芯片的设计。谷歌的张量处理单元（Tensor Processing Unit，后文简称TPU）是完成较早，具有代表性的一类设计，基于脉动阵列设计的矩阵计算加速单元，可以很好的加速神经网络的计算。本系列文章将利用公开的TPU V1相关资料，对其进行一定的简化、推测和修改，来实际编写一个简单版本的谷歌TPU，以更确切的了解TPU的优势和局限性。</p>
-</blockquote>
-<h1 id="1-完成SimpleTPU的设计"><a href="#1-完成SimpleTPU的设计" class="headerlink" title="1. 完成SimpleTPU的设计"></a>1. 完成SimpleTPU的设计</h1><p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c1/">谷歌TPU概述和简化</a>中给出过SimpleTPU的框图，如下图所示。</p>
-<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803170350.png" alt></p>
-<p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>中介绍了矩阵/卷积计算中的主要计算单元——乘加阵列（上图4），完成了该部分的硬件代码并进行了简单的验证；在<a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a>中介绍了卷积神经网络中的归一化和池化的实现方式（上图6），同时论述了浮点网络定点化的过程，并给出了Simple TPU中量化的实现方式，完成了该部分的硬件代码并进行了验证。</p>
-<p>在<a href="https://cea-wind.github.io/2019/08/02/TPU_c4/">TPU中的指令并行和数据并行</a>中对整个处理单元的体系结构进行了分析和论述，包括指令并行和数据并行两个方面。那么，如何在<a href="https://cea-wind.github.io/2019/08/02/TPU_c4/">TPU中的指令并行和数据并行</a>中提到的设计思路下，将<a href="https://cea-wind.github.io/2019/08/02/TPU_c2/">TPU中的脉动阵列及其实现</a>和<a href="https://cea-wind.github.io/2019/08/02/TPU_c3/">神经网络中的归一化和池化的硬件实现</a>中提到的计算单元充分的利用，是完成Simple TPU设计的最后一步。根据SimpleTPU的框图可知，需要实现的功能包括</p>
-<ul>
-<li>指令的取指和译码（上图4）</li>
-<li>Weight的读取（上图2）</li>
-<li>各个执行单元的控制和调度（上图1）</li>
-<li>读取图像和写回结果（上图5）</li>
-</ul>
-<p>在SimpleTPU的设计中，指令的取指和译码和Weight的读取功能都较为简单，可直接参照代码。</p>
-<p>在对各个执行单元进行控制和调度时需要确保各个单元可以共同执行，没有相互之间的数据依赖关系。</p>
-<p> 除此之外，还需要单独实现读取图像和写回结果的功能。SimpleTPU中只关注核心的计算功能，该部分功能并未进行优化，后续对实现效果进行分析时，也会将该部分运行时间排除在外。</p>
-<p>至此，Simple TPU的设计基本完成了，代码可参见<a href="https://github.com/cea-wind/SimpleTPU" target="_blank" rel="noopener">https://github.com/cea-wind/SimpleTPU</a>。</p>
-<h1 id="2-SimpleTPU的特性"><a href="#2-SimpleTPU的特性" class="headerlink" title="2. SimpleTPU的特性"></a>2. SimpleTPU的特性</h1><p>SimpleTPU的主要特性包括</p>
-<ul>
-<li>支持INT8乘法，支持INT32的累加操作</li>
-<li>采用VLIW进行指令并行</li>
-<li>采用向量体系结构进行数据并行</li>
-</ul>
-<p>SimpleTPU依照Google TPU V1的设计思路，可以完成神经网络推理过程中的大部分运算。依据设计，支持的运算包括（理论）</p>
-<table>
-<thead>
-<tr>
-<th>Operate</th>
-<th>Support</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Conv3d</td>
-<td>in_channels: Resource Constrained  <br> out_channels: Resource Constrained<br>kerner_size: Support<br>stride: support<br>padding: Support<br>dilation:Support<br>groups: Architecture Constrained<br>bias    :Support</td>
-</tr>
-<tr>
-<td>ConvTranspose3d</td>
-<td>The same as above</td>
-</tr>
-<tr>
-<td>Maxpool2d</td>
-<td>kernel_size: Support <br>stride: Support<br>padding: Support</td>
-</tr>
-<tr>
-<td>Avgpool2d</td>
-<td>The same as above</td>
-</tr>
-<tr>
-<td>Relu</td>
-<td>Only support Relu as nonlinear function</td>
-</tr>
-<tr>
-<td>BatchNorm2d</td>
-<td>BatchNorm2d is merge with Conv or Pool when inference</td>
-</tr>
-<tr>
-<td>Linear</td>
-<td>Resource Constrained</td>
-</tr>
-<tr>
-<td>UpscalingNearest2D</td>
-<td>Support (calling Avgpool2d multiple times.)</td>
-</tr>
-<tr>
-<td>UpscalingBilinear2D</td>
-<td>Support (calling Avgpool2d multiple times.)</td>
-</tr>
-</tbody></table>
-<p>其中，Resource Constrained代表该参数的取值范围有限，主要受限于SimpleTPU的存储设计等。由于架构设计上的问题，SimpleTPU对groupconv支持极为有限，在不合适的参数下效率可能远低于普通卷积；类似的，Google TPU也不能很好支持groupconv，并明确告知不制止depthwise conv（极度稀疏化的group conv）。</p>
-<p>BatchNorm2d在推理过程中实际上时进行逐点的乘法和加法，其中加法计算可以融合到下一层或者上一层的卷积计算中进行，乘法计算可以和pooling计算融合。在SimpleTPU设计，每次完成卷积计算后，均要进行一次Pooling计算，即使网络中没有pooling层，SimipleTPU增加了一个1*1，stride=1的pooling层进行等价。</p>
-<p>Upscaling操作通过pooling完成计算。这是因为在SimpleTPU中，reshape操作（支持的）是没有代价的。pooling操作可以完成双线性插值的计算，因此可以完成upscaling中的所有数值的计算。可以理解为通过pooling+reshape完成了upscaling的计算。</p>
-<h1 id="3-SimpleTPU的性能"><a href="#3-SimpleTPU的性能" class="headerlink" title="3. SimpleTPU的性能"></a>3. SimpleTPU的性能</h1><p>Simple TPU设计了一个32×32的int8乘加阵列计算矩阵乘法和卷积，和一个1×32的int32乘法阵列进行池化和归一化的计算。根据Xilinx HLS工具的综合结果，在UltraScale+系列的FPGA器件上，工作频率可达500MHz。因此SimpleTPU的算力约为</p>
-<p>$$32\times 32 \times 500MHz \times 2 = 1 Tops$$</p>
-<p>作为对比，GoogleTPU V1的算力约为92Tops（int8），差异主要在SimpleTPU的规模为其1/64，同时在FPGA上的工作频率会低于ASIC的工作频率。</p>
-<p>依据设计，SimpleTPU在适合的任务下会有很高的运行效率，TPU中的指令并行和数据并行中针对这一点又更为具体的描述。从宏观上看，SimpleTPU的各个运行单元可以流水并行的，即</p>
-<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20190803172510.png" alt></p>
-<p>而针对网络中计算量最大的全连接层和卷积层，针对性设计的乘法整列和向量计算的设计方法可以让其在每个时钟周期都完成有效的乘加计算；这意味着和CPU相比，SimpleTPU可以达到极高的效率。</p>
+        <h1 id="1-概述"><a href="#1-概述" class="headerlink" title="1. 概述"></a>1. 概述</h1><p>向量加法是一种计算简单且容易被并行化的计算，其计算可以表示为</p>
+<p>$$c[i] = a[i] + b[i], \quad i=0,1,2,…$$</p>
+<p>上述计算的代码实现如下。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_seq</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *a, <span class="keyword">int</span> *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i++)&#123;</span><br><span class="line">        c[i] = a[i] + b[i];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中向量$\bold{a,b,c}$均存储再内存中。上述代码在执行过程中，读取一个$a[i]$和$b[i]$，计算加法后将结果写回到$c[i]$中，重复执行这一过程直到计算完成。</p>
+<p>若不进行任何修改，直接将这段代码映射到FPGA上，其硬件的处理流程如下图所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021803.png" alt="示意图"></p>
+<p>从设计上看，这样一种执行方式是极其低效的，程序存在极大的优化空间。</p>
+<h1 id="2-流水线并行设计"><a href="#2-流水线并行设计" class="headerlink" title="2. 流水线并行设计"></a>2. 流水线并行设计</h1><p>在向量加法的例子中，取数，计算和写回三个过程是可以并行进行处理的。即在计算第$i$个数的加法运算时，可以预取第$i+1$个数，同时写回第$i-1$个计算结果。优化后的处理流程如下图所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816021928.png" alt="示意图"></p>
+<p>这样一种并行处理的设计思路叫做“流水线并行”，顾名思义，指各个处理单元像流水线上的作业形式处理数据，进而达到提高计算速率的目的。只需要添加<code>pragma</code>对编译过程进行指示，综合工具能够自动分析并处理流水线并行设计，优化后的代码如下</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_pipe</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *a, <span class="keyword">int</span> *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">    <span class="keyword">int</span> *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i++)&#123;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">pragma</span> HLS PIPELINE II=1</span></span><br><span class="line">        c[i] = a[i] + b[i];</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h1 id="3-数据并行设计"><a href="#3-数据并行设计" class="headerlink" title="3. 数据并行设计"></a>3. 数据并行设计</h1><p>虽然采用了流水线并行，一次计算的平均计算时间变短了，但计算过程依旧时逐个进行的。进一步的，可以采用数据并行设计，一个时钟周期处理多个数据以提高处理性能。这一并行方式类似CPU中的SIMD或GPU中的SIMT的方式。数据并行后的代码如下所示。</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">vector_add_parallel</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">    ap_uint&lt;<span class="number">512</span>&gt; *a, ap_uint&lt;<span class="number">512</span>&gt; *b, <span class="keyword">int</span> num,</span></span></span><br><span class="line"><span class="function"><span class="params">	ap_uint&lt;<span class="number">512</span>&gt; *c</span></span></span><br><span class="line"><span class="function"><span class="params">)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;num;i=i+<span class="number">16</span>)&#123;</span><br><span class="line">    <span class="meta">#<span class="meta-keyword">pragma</span> HLS PIPELINE II=1</span></span><br><span class="line">    	ap_uint&lt;<span class="number">512</span>&gt; rega,regb,regc;</span><br><span class="line">        rega = a[i/<span class="number">16</span>];</span><br><span class="line">        regb = b[i/<span class="number">16</span>];</span><br><span class="line">        <span class="keyword">for</span>(<span class="keyword">int</span> j=<span class="number">0</span>;j&lt;<span class="number">16</span>;j++)&#123;</span><br><span class="line">        <span class="meta">#<span class="meta-keyword">pragma</span> HLS UNROLL</span></span><br><span class="line">            regc(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j) = rega(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j) +regb(<span class="number">32</span>*j+<span class="number">31</span>,<span class="number">32</span>*j);</span><br><span class="line">        &#125;</span><br><span class="line">        c[i/<span class="number">16</span>] = regc;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>代码中首先将接口从<code>int</code>修改成了<code>ap_uint&lt;512&gt;</code>，通过这一修改，可以同时读取16个数据。同时，计算过程中将循环拆分成了两个，并在内部循环采用了<code>UNROLL</code>的<code>pragma</code>对循环进行展开。数据并行后处理流出如下所示。</p>
+<p><img src="https://raw.githubusercontent.com/cea-wind/blogs_pictures/master/img20200816022149.png" alt="示意图"></p>
+<h1 id="4-总结"><a href="#4-总结" class="headerlink" title="4. 总结"></a>4. 总结</h1><p>本节以向量加法的并行化设计过程为例展示了HLS并行程序设计中两个重要思路，流水线并行和数据并行。这两种并行设计可以分别通过HLS中的<code>LOOP PIPELINE</code>和<code>LOOP UNROLL</code>来完成。</p>
 
     </div>
 
@@ -374,25 +318,17 @@
           
         
         <div class="post-tags">
-            <a href="/tags/Tensor-Processing-Unit/" rel="tag"># Tensor Processing Unit</a>
+            <a href="/tags/FPGA/" rel="tag"># FPGA</a>
           
-            <a href="/tags/Architecture/" rel="tag"># Architecture</a>
+            <a href="/tags/Parallel-Programing/" rel="tag"># Parallel Programing</a>
           
-            <a href="/tags/Instruction-Level-Parallelism/" rel="tag"># Instruction Level Parallelism</a>
-          
-            <a href="/tags/Data-Parallelism/" rel="tag"># Data Parallelism</a>
-          
-            <a href="/tags/VLIW/" rel="tag"># VLIW</a>
-          
-            <a href="/tags/SMID/" rel="tag"># SMID</a>
-          
-            <a href="/tags/Vector-Architecture/" rel="tag"># Vector Architecture</a>
+            <a href="/tags/HLS/" rel="tag"># HLS</a>
           
         </div>
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
-              <a href="/2019/08/03/TPU_c4/" rel="next" title="TPU中的指令并行和数据并行">
-                <i class="fa fa-chevron-left"></i> TPU中的指令并行和数据并行
+              <a href="/2020/03/09/matrix_accel_design/" rel="next" title="矩阵乘法加速器的设计框架">
+                <i class="fa fa-chevron-left"></i> 矩阵乘法加速器的设计框架
               </a>
             
           </div>
@@ -400,10 +336,6 @@
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-              <a href="/2019/08/03/TPU_c6/" rel="prev" title="神经网络加速器应用实例：图像分类">
-                神经网络加速器应用实例：图像分类 <i class="fa fa-chevron-right"></i>
-              </a>
-            
           </div>
         </div>
     </footer>
@@ -569,7 +501,7 @@
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-完成SimpleTPU的设计"><span class="nav-text">1. 完成SimpleTPU的设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-SimpleTPU的特性"><span class="nav-text">2. SimpleTPU的特性</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-SimpleTPU的性能"><span class="nav-text">3. SimpleTPU的性能</span></a></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#1-概述"><span class="nav-text">1. 概述</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#2-流水线并行设计"><span class="nav-text">2. 流水线并行设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#3-数据并行设计"><span class="nav-text">3. 数据并行设计</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#4-总结"><span class="nav-text">4. 总结</span></a></li></ol></div>
             
 
           </div>
